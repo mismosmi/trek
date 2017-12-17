@@ -1,13 +1,14 @@
+<?php
+echo 'hallowelt';
+require_once("php/site_builder.php");
+echo 'abc';
+$b = new site_builder();
+?>
+<!DOCTYPE html>
 <html>
-<head>
-<title>TREK</title>
-<link rel="stylesheet" type="text/css" href="../css/bootstrap.min.css">
-<link rel="stylesheet" type="text/css" href="../css/main.css">
-<script type="text/javascript" src="../js/bootstrap.min.js"></script>
-<script type="text/javascript" src="../js/jquery.min.js"></script>
-<script type="text/javascript" src="../js/main.js"></script>
-
-</head>
+<?php $b->head(); ?>
 <body>
+<?php $b->navbar(); ?>
+<?php $b->scripts(); ?>
 </body>
 </html>
