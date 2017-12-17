@@ -1,21 +1,21 @@
 <?php
 
-echo '0';
-require_once('../config/config.php');
-echo '1';
-require_once('../config/pages.php');
-echo '2';
+require_once('config/config.php');
 
 class site_builder {
-    private $include_js = $config->default_js;
-    private $include_css = $config->default_css;
-    public $favicon = $config->favicon;
+    private $include_js;
+    private $include_css;
+    public $favicon;
     private $cssdir;
     private $jsdir;
 
-    function __construct($basepath = ''){
+    function __construct($basepath = '', $favicon = ''){
+        global $config;
+        $this->include_js = $config->default_js;
+        $this->include_css = $config->default_css;
         $this->cssdir = $basepath.'css/';
         $this->jsdir = $basepath.'js/';
+        $this->favicon = ($favicon == '') ? $favicon : $this->favicon;
     }
 
     function add_js($path) {
@@ -27,8 +27,9 @@ class site_builder {
     }
 
     function head($description) {
+        global $config;
         $css_includes = '';
-        foreach ($include_css as $path){
+        foreach ($this->include_css as $path){
             $css_includes .= "<link rel=\"stylesheet\" type=\"text/css\" href=\"$cssdir$path\">\n";
         }
             
@@ -39,23 +40,25 @@ class site_builder {
 <meta name=\"description\" content=\"$confg->description $description\">
 <meta name=\"author\" content=\"$config->author\">
 <link rel=\"icon\" href=\"$this->favicon\">
-join('\n',$css_includes)
+$css_includes
 </head>
 ";
     }
 
     function navigation_main() {
+        global $config;
         $nav = "<ul class=\"navbar-nav\">\n";
-        foreach ($pages as $page) {
-            $nav .= "<li class=\"nav-item\"";
+        foreach ($config->pages as $page) {
+            $nav .= "<li class=\"nav-item";
             if ($page->active) $nav .= " active";
-            $nav .= "\"><a class=\"nav-link\" href=\"$pagedir$page->name\">$page->title</a></li>\n" ;
+            $nav .= "\"><a class=\"nav-link\" href=\"$pagedir{$page['name']}\">{$page['title']}</a></li>\n" ;
         }
         $nav .= "</ul>";
         return $nav;
     }
 
     function navbar() {
+        global $config;
         $nav = $this->navigation_main();
         echo "<nav class=\"navbar navbar-expand-md fixed-top\">
 <a href=\"#\" class=\"navbar-brand\">$config->title</a>
@@ -63,16 +66,17 @@ $nav
 </nav>
 ";
     }
-
     function scripts() {
-        $js_includes = '';
-        foreach ($include_js as $path){
-            $js_includes .= "<script type=\"text/javascript\" src="$jsdir$path\">\n";
-        echo $js_includes;
+        $scripts = '';
+        foreach ($this->include_js as $path){
+            $scripts .= "<script type=\"text/javascript\" src=\"{$this->jsdir}{$path}\">\n</script>";
         }
+        echo $scripts;
 
     }
-
-
+    
 
 }
+
+?>
+

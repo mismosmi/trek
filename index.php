@@ -1,12 +1,10 @@
-<?php
-echo 'hallowelt';
-require_once("php/site_builder.php");
-echo 'abc';
-$b = new site_builder();
-?>
 <!DOCTYPE html>
 <html>
-<?php $b->head(); ?>
+<?php
+require_once('php/site_builder.inc.php');
+$b = new site_builder();
+?>
+<?php $b->head('very simple inventory control'); ?>
 <body>
 <?php $b->navbar(); ?>
 <?php $b->scripts(); ?>
