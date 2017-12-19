@@ -1,8 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
 <?php
+define('PHP_ROOT', '');
+define('HTML_ROOT', '');
+define('HTML_FILE', basename(__FILE__));
 require_once('php/site_builder.inc.php');
-$b = new site_builder();
+$b = new site_builder('Home');
 echo $b->head('very simple inventory control'); 
 ?>
 <body>

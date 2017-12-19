@@ -1,7 +1,5 @@
 <?php
 
-require_once('config/config.php');
-
 class site_builder {
     private $include_js;
     private $include_css;
@@ -10,14 +8,14 @@ class site_builder {
     private $jsdir;
     private $pagedir;
 
-    function __construct($basepath = '', $favicon = ''){
+    function __construct($title, $favicon=''){
         global $config;
         $this->include_js = $config->default_js;
         $this->include_css = $config->default_css;
-        $this->cssdir = $basepath.'css/';
-        $this->jsdir = $basepath.'js/';
-        $this->pagedir = $basepath.'pages/';
-        $this->favicon = ($favicon == '') ? $favicon : $this->favicon;
+        $this->cssdir = HTML_ROOT.'css/';
+        $this->jsdir = HTML_ROOT.'js/';
+        $this->pagedir = HTML_ROOT.'p/';
+        $this->favicon = ($favicon != '') ? $favicon : $config->favicon;
     }
 
     public function add_js($path) {
@@ -39,7 +37,7 @@ class site_builder {
 <title>$config->title</title>
 <meta charset=\"utf-8\">
 <meta name=\"viewport\" content=\"width=device-width, initial-scale=1, shrink-to-fit=no\">
-<meta name=\"description\" content=\"$confg->description $description\">
+<meta name=\"description\" content=\"$config->description $description\">
 <meta name=\"author\" content=\"$config->author\">
 <link rel=\"icon\" href=\"$this->favicon\">
 $css_includes
@@ -51,11 +49,18 @@ $css_includes
         global $config;
 
         $nav = "<ul class=\"$ul\">\n";
-        foreach ($config->pages as $page) {
+        foreach ($config->pages as $file => $title) {
             $nav .= "<li class=\"$li";
-            if ($page->active) $nav .= " active";
-            $file = ($page['file'] == 'index.php') ? $page['file'] : $this->pagedir.$page['file'];
-            $nav .= "\"><a class=\"$a\" href=\"$file\">{$page['title']}</a></li>\n" ;
+            if ($file == HTML_FILE) {
+                $nav .= " active";
+                $file = '#';
+            } elseif ($file == 'index.php') {
+                $file = HTML_ROOT.$file;
+            } else {
+                $file = $this->pagedir.$file;
+            }
+
+            $nav .= "\"><a class=\"$a\" href=\"$file\">$title</a></li>\n" ;
         }
         $nav .= "</ul>";
         return $nav;
@@ -70,6 +75,7 @@ $nav
 </nav>
 ";
     }
+
     public function scripts() {
         $scripts = '';
         foreach ($this->include_js as $path){
