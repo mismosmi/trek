@@ -2,15 +2,15 @@
 
 return array(
     'defaultJs' => [
-    'jquery-3.2.1.min.js',
-    'popper.min.js',
-    'bootstrap.min.js',
-    'main.js',
+        'jquery-3.2.1.min.js',
+        'popper.min.js',
+        'bootstrap.min.js',
+        'main.js',
     ],
 
     'defaultCss' => [
-    'bootstrap.min.css',
-    'main.css'
+        'bootstrap.min.css',
+        'main.css'
     ],
 
     'favicon' => 'logo.ico',
@@ -22,9 +22,22 @@ return array(
     'description' => 'Trek - simple inventory management',
 
     'pages' => [
-    'index.php'=>'Home',
-    'dbtest.php'=>'Database Test',
+        'index.php'=>'Home',
+        'dbtest.php'=>'Database Test',
+    ],
+
+    'table' => [
+        'entriesPerPage' => 50
+    ],
+
+    'database' => [
+        'backend' => 'mysql',
+        'host' => 'localhost',
+        'username' => 'trek',
+        'password' => 'IvVJWPG3',
+        'dbname' => 'trekdb'
     ]
+
 )
 
 ?>

@@ -21,7 +21,16 @@ return array(
 
     'pages' => [
     'index.php'=>'Home',
-    'test.php'=>'Unit Test Page',
+    'test.php'=>'Test Page',
+    ],
+
+    'table' => [
+        'entriesPerPage' => 5
+    ],
+
+    'database' => [
+        'backend' => 'sqlite',
+        'path' => ':memory:'
     ]
 )
 

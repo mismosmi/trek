@@ -4,7 +4,7 @@ define('HTML_ROOT', '../');
 define('HTML_FILE', basename(__FILE__));
 define('CONFIG_TEST', PHP_ROOT.'tests/testconfig.php');
 
-require(PHP_ROOT."php/page.inc.php");
+require_once(PHP_ROOT."php/page.inc.php");
 
 use PHPUnit\Framework\TestCase;
 
@@ -36,7 +36,7 @@ class PageTest extends TestCase
             ."Home</a></li>\n"
             ."<li class=\"nav-item\">"
             ."<a class=\"nav-link\" href=\"../p/test.php\">"
-            ."Unit Test Page</a></li>\n"
+            ."Test Page</a></li>\n"
             ."</ul>";
 
         $this->assertEquals($correct, $page->getMainNavigation());

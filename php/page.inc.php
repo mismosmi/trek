@@ -15,7 +15,7 @@ class Page {
     *
     * @var array
     */
-    private $_config;
+    protected $_config;
     /**
     * Array of paths of javascript files to include
     *
