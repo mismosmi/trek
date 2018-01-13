@@ -8,7 +8,7 @@ function Tv(mainValues, sideValues) {
     }
 
     this.get = function(at) {
-        return $.extend({},
+        return $.extend({'+': },
             this.mainValues,
             this.sideValues,
             this.mainValues[at]
@@ -18,7 +18,7 @@ function Tv(mainValues, sideValues) {
         for (var tn in this.sideValues) {
             row[tn] = this.sideValues[tn][row[tn+'-id']];
         this.mainValues.push(row);
-    }
+    };
 }
 
 function Trek(userVars) {
@@ -32,14 +32,23 @@ function Trek(userVars) {
     this.formAutoFields = $('.trek-auto');
     this.tv;
 
+    this.getColumnByName = function(name) {
+        for (var i in this.columns) {
+            if (this.columns[i]['name'] === name) {
+                return this.columns[i];
+            }
+        }
+    }
+
     this.appendRow = function(n,row) {
         console.log('appendrow: '+JSON.stringify(row));
         var tr = $('<tr></tr>');
+        var tv = this.tv.get(n);
         for (var i in this.columns) {
             var col = this.columns[i];
             console.log('for column '+col.name);
             if (col.class === 1) {
-                tr.append('<td>'+col.run(this.tv.get(n),n)+'</td>');
+                tr.append('<td>'+col.run(tv,n)+'</td>');
             } else {
                 tr.append('<td>'+row[col.name]+'</td>');
             }
@@ -104,7 +113,8 @@ function Trek(userVars) {
         });
         _this.formDataFields.change(function() {
             _this.formAutoFields.each(function() {
-                $(this).val(_this.columns[
+                var col = _this.getColumnByName($(this).data('col'));
+                $(this).val(col['run']('+',_this.tv.get()));
             });
         });
         for (var dcn in _this.formDataFields) {
