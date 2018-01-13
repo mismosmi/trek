@@ -52,6 +52,12 @@ class Page {
     * @var string
     */
     private $_pageDir;
+    /**
+     * Open database connection
+     *
+     * @var PDO
+     */
+    protected $_db = NULL;
 
     /**
     * Constructor
@@ -89,6 +95,15 @@ class Page {
         $this->favicon = empty($favicon) 
             ? $this->_config['favicon']
             : $favicon;
+    }
+
+    /**
+     * Desctructor
+     * closes database connection
+     */
+    public function __destruct()
+    {
+        $this->_db = NULL;
     }
 
     /**
@@ -205,6 +220,244 @@ class Page {
         return $scripts;
     }
     
+    /**
+     * open a PDO mysql connection to db specified in config.php
+     *
+     * @return array success-status and error message
+     */
+    public function dbConnect()
+    {
+        if ($this->_db != NULL) return ['success' => True];
+
+        $dbdata = $this->_config['database'];
+        try {
+            if ($dbdata['backend'] == 'sqlite') {
+                $conn = new PDO("sqlite:{$dbdata['path']}");
+            } elseif ($dbdata['backend'] == 'mysql') {
+                $conn = new PDO("mysql:host={$dbdata['host']};dbname={$dbdata['dbname']}",
+                    $dbdata['username'], $dbdata['password']);
+            }
+            $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+            $this->_db = $conn;
+            return ['success' => True];
+        } catch(PDOException $e) {
+            return ['success' => False, 'errormsg' =>
+            "Connection failed: ".$e->getMessage()];
+        }
+
+    }
+
+    /**
+     * query sql to create a table
+     *
+     * @param string $name    
+     * @param array $columns    columns to be created, minimum format column:
+     *                          ['name' => column name,
+     *                          'type' => sql field type,
+     *                          'required' => True if field should be NOT NULL]
+     *                          per default only id and timestamp will be
+     *                          created.
+     * @return array success-status and error message
+     */
+    public function dbCreateTable($name, $columns = [])
+    {
+        $connStatus = $this->dbConnect();
+        if (!$connStatus['success']) return $connStatus;
+
+        try {
+            $be = $this->_config['database']['backend'];
+            $query = "CREATE TABLE $name (";
+            if ($be == 'sqlite') {
+                $query .= "id INTEGER PRIMARY KEY, "
+                    ."entrydate DATETIME DEFAULT CURRENT_TIMESTAMP";
+            } elseif ($be == 'mysql') {
+                $query .= "id INT NOT NULL AUTO_INCREMENT, "
+                    ."entrydate TIMESTAMP";
+            }
+            foreach ($columns as $col) {
+                $query .= ", {$col['name']} {$col['type']} ";
+                if ($col['required']) $query .= "NOT NULL ";
+            }
+            if ($be == 'mysql') $query .= ", PRIMARY KEY (id)";
+            $query .= ")";
+            $this->_db->exec($query);
+            return ['success' => True];
+        } catch (PDOException $e) {
+            return ['success' => False, 'errormsg' => 
+                "failed creating table $name: ".$e->getMessage()];
+        }
+    }
+
+    /**
+     * query sql to drop a table
+     *
+     * @param string $name
+     * @return array success-status and error message
+     */
+    public function dbDropTable(string $name)
+    {
+        $connStatus = $this->dbConnect();
+        if (!$connStatus['success']) return $connStatus;
+
+        try {
+            $query = "DROP TABLE $name";
+            $this->_db->exec($query);
+            return ['success' => True];
+        } catch (PDOException $e) {
+            return ['success' => False, 'errormsg' =>
+                "failed dropping table $this->name: ".$e->getMessage()];
+        }
+    }
+
+    /**
+     * check if table exists
+     *
+     * @param string $name
+     * @return bool
+     */
+    public function dbTableExists(string $name)
+    {
+        if (!$this->dbConnect()['success']) return False;
+        $be = $this->_config['database']['backend'];
+
+        if ($be == 'mysql') {
+            try {
+                $stmt = $this->_db->prepare("SHOW TABLES WHERE "
+                    ."Tables_in_{$this->_config['database']['dbname']} LIKE :name");
+                $stmt->bindParam(":name", $name);
+                $stmt->execute();
+                return ($stmt->rowCount() == 1);
+            } catch (PDOException $e) {
+                return False;
+            }
+        } elseif ($be = 'sqlite') {
+            try {
+                $this->_db->exec("SELECT 1 FROM $name LIMIT 1");
+                return True;
+            } catch (PDOException $e) {
+                return False;
+            }
+        }
+    }
+
+    /**
+     * process requests for inserting new row to table
+     *
+     * @param string $table
+     * @param array $data 
+     * @return array success-status and error message
+     */
+    public function dbInsert(string $table, array $data)
+    {
+        $connStatus = $this->dbConnect();
+        if (!$connStatus['success']) return $connStatus;
+
+        try {
+            $collist = [];
+            $paramlist = [];
+            foreach ($data as $name => $val) {
+                $collist[] = $name;
+                $paramlist[] = ":".$name;
+            }
+            $stmt = $this->_db->prepare("INSERT INTO $table "
+                ."(".join(",",$collist).") "
+                ."VALUES (".join(",",$paramlist).")");
+            foreach ($data as $name => $val) {
+                $stmt->bindParam(":".$name, $val);
+            }
+            $stmt->execute();
+            return ['success' => True];
+        } catch (PDOException $e) {
+            return ['success' => False, 'errormsg' =>
+            "Error inserting row: ".$e->getMessage()];
+        }
+
+    }
+
+    /**
+     * process requests for modifying row in table
+     *
+     * @param string $table
+     * @param int $row
+     * @param array $data
+     * @return array success-status and error message
+     */
+    public function dbAlter(string $table, int $row, array $data)
+    {
+        $connStatus = $this->dbConnect();
+        if (!$connStatus['success']) return $connStatus;
+        try {
+            $collist = [];
+            $paramlist = [];
+            $set = [];
+            foreach ($data as $name => $val) {
+                $set[] = "$name = :$name";
+            }
+            $stmt = $this->_db->prepare("UPDATE $table "
+                ."SET ".join(",",$set)." WHERE id=$row");
+            foreach ($data as $name => $var) {
+                $stmt->bindParam(":".$name, $val);
+            }
+            $stmt->execute();
+            return ['success' => True];
+        } catch (PDOException $e) {
+            return ['success' => False, 'errormsg' =>
+            "Error altering row $row: ".$e->getMessage()];
+        }
+    }
+
+    /**
+     * process request for row deletion
+     *
+     * @param string $table
+     * @param int $row
+     * @return array success-status and error message
+     */
+    public function dbDelete(string $table, int $row)
+    {
+        $connStatus = $this->dbConnect();
+        if (!$connStatus['success']) return $connStatus;
+
+        try {
+            $this->_db->exec("DELETE FROM $table WHERE id=$row");
+            return ['success' => True];
+        } catch (PDOException $e) {
+            return ['success' => False, 'errormsg' =>
+            "Error inserting row: ".$e->getMessage()];
+        }
+    }
+
+    /**
+     * process arbitrary SELECT request
+     *
+     * @param string $table
+     * @param array (string) $columns    which columns to select
+     * @param array $where               ['condition',...]
+     * @return array success-status and data or error message
+     */
+    public function dbSelect(
+        string $table, 
+        array $columns = ['*'], 
+        array $where = []
+    )
+    {
+        $connStatus = $this->dbConnect();
+        if (!$connStatus['success']) return $connStatus;
+
+        try {
+            $ws = empty($where) ? "" : " WHERE ".join(',',$where);
+            $stmt = $this->_db->prepare(
+                "SELECT ".join(",",$columns)." "
+                ."FROM $table$ws"
+            );
+            $stmt->execute();
+            $stmt->setFetchMode(PDO::FETCH_ASSOC);
+            return ['success' => True, 'data' => $stmt->fetchAll()];
+        } catch (PDOException $e) {
+            return ['success' => False, 'errormsg' =>
+                "Error fetching data from table $table: ".$e->getMessage()];
+        }
+    }
 
 }
 

@@ -1,0 +1,55 @@
+<!DOCTYPE HTML>
+<html>
+    <head>
+        <meta charset="utf-8">
+    </head>
+    <body>
+        <div class="trek-table">
+        <table>
+            <thead>
+                <tr>
+                    <th data-col="jstest-id">JS-Test-ID</th>
+                    <th data-col="datacol">Data Column</th>
+                    <th data-col="autocol">Auto Column</th>
+                    <th data-col="timestamp">Edited</th>
+                    <th data-col="controls"></th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr class="trek-form">
+                    <td></td>
+                    <td><input type="text" class="form-control trek-data" id="datacol" placeholder="some data" required></td>
+                    <td><input type="text" class="form-control trek-auto readonly" id="autocol"></td>
+                    <td></td>
+                    <td><button type="submit" class="btn btn-default">Save</button></td>
+                </tr>
+            </tbody>
+        </table>
+        </div>
+        <ul id="output">
+        </ul>
+        <script src="../js/jquery-3.2.1.min.js"></script>
+        <script src="../js/table.js"></script>
+    <script>
+        console.log("inline script");
+        $(document).ready(function(){
+
+            trekData = new Trek({
+                tableName: 'jstest',
+                columns: [
+                    {class: 2, name: 'jstest-id'},
+                    {class: 0, name: 'datacol'},
+                    {class: 1, name: 'autocol', run: function(n,tv) {
+                        return tv.datacol;
+                    }},
+                    {class: 2, name: 'timestamp'}
+                ],
+                ajaxUrl: 'tableTestResponse.php'
+            });
+
+            trekData.selectTable();
+            trekData.insert();
+        });
+    </script>
+    </body>
+</html>

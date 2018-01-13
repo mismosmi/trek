@@ -4,6 +4,8 @@ define('HTML_ROOT', '../');
 define('HTML_FILE', basename(__FILE__));
 define('CONFIG_TEST', PHP_ROOT.'tests/testconfig.php');
 
+define('SUCCESS', ['success' => True]);
+
 require_once(PHP_ROOT."php/page.inc.php");
 
 use PHPUnit\Framework\TestCase;
@@ -76,6 +78,65 @@ class PageTest extends TestCase
 
         $this->assertEquals($correct, $page->getNavbar());
     }
+
+    public function testDbConnect()
+    {
+        $p = new Page('testpage', '', CONFIG_TEST);
+        $this->assertEquals(SUCCESS, $p->dbConnect());
+    }
+
+    public function testDbTableNotExists()
+    {
+        $p = new Page('testpage', '', CONFIG_TEST);
+        $this->assertFalse($p->dbTableExists('testtable'));
+    }
+
+    public function testDbCreateTableAndExists()
+    {
+        $p = new Page('testpage', '', CONFIG_TEST);
+        $this->assertEquals(SUCCESS, $p->dbCreateTable('testtable'));
+        $this->assertTrue($p->dbTableExists('testtable'));
+    }
+
+    public function testDbSelectEmpty()
+    {
+        $p = new Page('testpage', '', CONFIG_TEST);
+        $columns = [['name' => "testcol", 'type' => "VARCHAR", 'required' => True]];
+        $p->dbCreateTable('testtable', $columns);
+        $result = ['success' => True, 'data' => []];
+        $this->assertEquals($result, $p->dbSelect('testtable'));
+    }
+
+    public function testDbInsertAndSelect()
+    {
+        $p = new Page('testpage', '', CONFIG_TEST);
+        $columns = [['name' => "testcol", 'type' => "VARCHAR", 'required' => True]];
+        $p->dbCreateTable('testtable', $columns);
+
+        $data = ['testcol' => 'testvalue'];
+        $this->assertEquals(SUCCESS, $p->dbInsert('testtable', $data));
+        $result = ['success' => True, 'data' => [['id' => 1, 'testcol' => 'testvalue']]];
+        $this->assertEquals($result, $p->dbSelect('testtable', ['id', 'testcol']));
+    }
+
+    public function testDbAlterAndDelete()
+    {
+        $p = new Page('testpage', '', CONFIG_TEST);
+        $columns = [['name' => "testcol", 'type' => "VARCHAR", 'required' => True]];
+        $p->dbCreateTable('testtable', $columns);
+        $p->dbInsert('testtable', ['testcol' => 'testvalue']);
+
+        $data = ['testcol' => 'altered value'];
+        $this->assertEquals(SUCCESS, $p->dbAlter('testtable', 1, $data));
+        $result = ['success' => True, 'data' => [['testcol' => 'altered value']]];
+        $this->assertEquals($result, $p->dbSelect('testtable', ['testcol']));
+        $this->assertEquals(SUCCESS, $p->dbDelete('testtable', 1));
+        $result = ['success' => True, 'data' => []];
+        $this->assertEquals($result, $p->dbSelect('testtable'));
+    }
+
+        
+
     
 }
 

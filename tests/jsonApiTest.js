@@ -1,4 +1,4 @@
-function jsonTest(url, data) {
+function ajaxTest(url, data) {
     $.ajax({
         url: url,
         data: data,
@@ -27,13 +27,13 @@ function jsonTest(url, data) {
     });
 }
 $(document).ready(function(){
-    jsonTest('jsonApiTest.php', {testdata: 'dies ist ein test'});
-    jsonTest('../p/dbtest.php', {operation: 'SELECT PAGE'});
-    jsonTest('../p/dbtest.php', {operation: 'INSERT', data: {testcol1: "exampledata"}});
-    jsonTest('../p/dbtest.php', {operation: 'SELECT PAGE'});
-    jsonTest('../p/dbtest.php', {operation: 'ALTER', row: 1, data: {testcol1: "changed data"}});
-    jsonTest('../p/dbtest.php', {operation: 'SELECT PAGE'});
-    jsonTest('../p/dbtest.php', {operation: 'DELETE', row: 1});
-    jsonTest('../p/dbtest.php', {operation: 'SELECT PAGE'});
+    ajaxTest('jsonApiTest.php', {testdata: 'dies ist ein test'});
+    ajaxTest('../p/dbtest.php', {operation: 'SELECT TABLE'});
+    ajaxTest('../p/dbtest.php', {operation: 'INSERT', data: {datacol1: "exampledata"}});
+    ajaxTest('../p/dbtest.php', {operation: 'SELECT TABLE'});
+    ajaxTest('../p/dbtest.php', {operation: 'ALTER', row: 1, data: {datacol1: "changed data"}});
+    ajaxTest('../p/dbtest.php', {operation: 'SELECT TABLE'});
+    ajaxTest('../p/dbtest.php', {operation: 'DELETE', row: 1});
+    ajaxTest('../p/dbtest.php', {operation: 'SELECT TABLE'});
 
 });

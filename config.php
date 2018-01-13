@@ -35,7 +35,7 @@ return array(
         'host' => 'localhost',
         'username' => 'trek',
         'password' => 'IvVJWPG3',
-        'dbname' => 'trekdb'
+        'dbname' => 'trek'
     ]
 
 )

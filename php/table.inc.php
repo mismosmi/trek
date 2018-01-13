@@ -32,12 +32,6 @@ class Table extends Page
      */
     protected $idname;
     /**
-     * Open database connection
-     *
-     * @var PDO
-     */
-    protected $db = NULL;
-    /**
      * table columns
      *
      * @var array
@@ -55,7 +49,6 @@ class Table extends Page
     * passes parameters to parent constructor and adds table.css and table.js
     *
     * @param string $name       unique table name for sql table
-    * @param string $idname     display name for table-id
     * @param string $title      <title>config->title | $title</title>
     * @param string $favicon    set page-specific favicon, defaults to setting
     *                           in config.php
@@ -63,26 +56,16 @@ class Table extends Page
     */
     public function __construct(
         string $name,
-        string $idname = '',
         string $title = '',
         string $favicon = '',
         string $configFile = ''
     ) 
     {
         $this->name = $name;
-        $this->idname = $idname;
+        $this->idname = $name."-id";
         parent::__construct($title, $favicon, $configFile);
         $this->addCss('table.css');
         $this->addJs('table.js');
-    }
-
-    /**
-     * Desctructor
-     * closes database connection
-     */
-    public function __destruct()
-    {
-        $this->db = NULL;
     }
 
     /**
@@ -204,7 +187,6 @@ class Table extends Page
      *
      * @return array elements of the form
      */
-    //protected function getForm()
     public function getFormElements()
     {
         $elements = [];
@@ -231,281 +213,135 @@ class Table extends Page
     }
 
     /**
-     * open a PDO mysql connection to db specified in config.php
+     * check if keys exists in $this->col to prevent sql injection attack
      *
-     * @return bool success
+     * @param array $data
+     * @return array only entries where column name exists in $this->col
      */
-    //protected function connectToDb()
-    public function connectToDb()
+    public function validateTableKeys(array $data)
     {
-        if ($this->db != NULL) return ['status' => "success"];
-
-        $dbdata = $this->_config['database'];
-        try {
-            if ($dbdata['backend'] == 'sqlite') {
-                $conn = new PDO("sqlite:{$dbdata['path']}");
-            } elseif ($dbdata['backend'] == 'mysql') {
-                $conn = new PDO("mysql:host={$dbdata['host']},dbname={$dbdata['dbname']}",
-                    $dbdata['username'], $dbdata['password']);
-            }
-            $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-        } catch(PDOException $e) {
-            return ['status' => "failed", 'errormsg' =>
-            "Connection failed: ".$e->getMessage()];
+        $dataChecked = [];
+        foreach ($this->col as $col) {
+            if (array_key_exists($col['name'], $data) && $col['class'] == Column::DataCol)
+                $dataChecked[$col['name']] = $data[$col['name']];
         }
-        $this->db = $conn;
-        return ['status' => "success"];
+        return $dataChecked;
     }
 
     /**
-     * query sql to create this table
+     * create table in sql database
      *
-     * @return bool success
+     * @return array success-status and error message
      */
-    //protected function createTable()
-    public function createTable()
+    public function dbCreateThisTable()
     {
-        $connStatus = $this->connectToDb();
-        if ($connStatus['status'] == "failed") return $connStatus;
-
-        try {
-            $be = $this->_config['database']['backend'];
-            $query = "CREATE TABLE $this->name (";
-            if ($be == 'sqlite') {
-                $query .= "id INTEGER PRIMARY KEY, "
-                    ."entrydate DATETIME DEFAULT CURRENT_TIMESTAMP";
-            } elseif ($be == 'mysql') {
-                $query .= "id INT NOT NULL AUTO_INCREMENT, "
-                    ."entrydate TIMESTAMP";
-            }
-            foreach ($this->col as $col) {
-                if ($col['class'] !== Column::DataCol) continue;
-                $required = $col['required'] ? "NOT NULL " : "";
-                $query .= ", {$col['name']} {$col['type']} "
-                    ."{$required}";
-            }
-            if ($be == 'mysql') $query .= ", PRIMARY KEY (id)";
-            $query .= ")";
-            $this->db->exec($query);
-            return ['status' => "success"];
-        } catch (PDOException $e) {
-            return ['status' => "failed", 'errormsg' => 
-                "failed creating table $this->name: ".$e->getMessage()];
+        $columns = [];
+        foreach ($this->col as $col) {
+            if ($col['class'] === Column::DataCol) $columns[] = $col;
         }
+        return $this->dbCreateTable($this->name, $columns);
     }
 
     /**
-     * query sql to drop this table
+     * drop table
      *
-     * @return bool success
+     * @return array succes-status and error message
      */
-    //protected function dropTable()
-    public function dropTable()
+    public function dbDropThisTable()
     {
-        $connStatus = $this->connectToDb();
-        if ($connStatus['status'] == "failed") return $connStatus;
-
-        try {
-            $query = "DROP TABLE $this->name";
-            $this->db->exec($query);
-            return ['status' => "success"];
-        } catch (PDOException $e) {
-            return ['status' => "failed", 'errormsg' =>
-                "failed dropping table $this->name: ".$e->getMessage()];
-        }
+        return $this->dbDropTable($this->name);
     }
-
+    
     /**
      * process requests for table data
      * create table if does not exist
+     * $mainValues: values directly displayed in table
+     * $sideValues: values only needed for further calculation in cell scripts
      *
-     * @param int $pageNumber   use pagenumber to load large tables in several
-     *                          pages, default -1: load all, page length 
-     *                          defined in config.php
-     * @return array the requested table data as array
+     * @return array success-status and data or error message
      */
-    //protected function processSelect(int $pageNumber = -1)
-    public function processSelectPage(int $pageNumber = -1)
+    public function dbSelectThisTable()
     {
-        $connStatus = $this->connectToDb();
-        if ($connStatus['status'] == "failed") return $connStatus;
-        try {
-            $collist = ['id','entrydate'];
-            foreach ($this->col as $col) {
-                if ($col['class'] === Column::DataCol) $collist[] = $col['name'];
-            }
-            $stmt = $this->db->prepare(
-                "SELECT ".join(",",$collist)." "
-                ."FROM $this->name"
-            );
-            $stmt->execute();
-            $stmt->setFetchMode(PDO::FETCH_ASSOC);
-            $mainValues = $stmt->fetchAll();
-
-            $sideValues = [];
-            foreach ($this->refVars as $tablename => $tablecols) {
-                $sideValues[$tablename] = [];
-                $stmt = $conn->prepare(
-                    "SELECT ".join(",",$tablecols)." "
-                    ."FROM $tablename"
-                );
-                $stmt->execute();
-                $stmt->setFetchMode(PDO::FETCH_ASSOC);
-                $sideValues[$tablename] = $stmt->fetchAll();
-            }
-            return ['status' => "success", 'data' => 
-                ['mainValues' => $mainValues, 'sideValues' => $sideValues]];
-        } catch (PDOException $e) {
-            $createTableResult = $this->createTable();
-            if ($createTableResult['status'] == "success") {
-                return ['status' => "failed", 'errormsg' => 
-                    'Created Table. Please retry'];
-            }
-            return ['status' => "failes", 'errormsg' =>
-                "Error fetching data: ".$e->getMessage()
-                ." ".$createTableResult['errormsg']];
+        $result = $this->dbSelect($this->name);
+        if (!$result['success']) {
+            $createResult = $this->dbCreateTable($this->name);
+            if ($createResult['success']) 
+                return ['success' => True, 'alert' => "Successfully created Table",
+                'data' => ['mainValues' => [], 'sideValues' => []],
+                'columns' => $this->col];
+            return ['success' => False, 'errormsg' => 
+                $result['errormsg'].'\n'.$createResult['errormsg']];
         }
+        $mainValues = $result['data'];
+
+        $sideValues = [];
+        foreach ($this->refVars as $tablename => $tablecols) {
+            $result = $this->dbSelect($tablename,$tablecols);
+            if (!$result['success']) return $result;
+            $sideValues[$tablename] = $result['data'];
+        }
+
+        return ['success' => True, 'data' =>
+            ['mainValues' => $mainValues, 'sideValues' => $sideValues]];
     }
 
     /**
      * process requests for inserting new row to table
      *
      * @param array $data       POST data from Ajax as array
-     * @return bool success
+     * @return array success-status and error message
      */
-    //protected function processInsert(array $data)
-    public function processInsert(array $data)
+    public function dbInsertIntoThis(array $data)
     {
-        $connStatus = $this->connectToDb();
-        if ($connStatus['status'] == "failed") return $connStatus;
-        try {
-            $collist = [];
-            $paramlist = [];
-            foreach ($data as $name => $val) {
-                $collist[] = $name;
-                $paramlist[] = ":".$name;
-            }
-            $stmt = $this->db->prepare("INSERT INTO $this->name "
-                ."(".join(",",$collist).") "
-                ."VALUES (".join(",",$paramlist).")");
-            foreach ($data as $name => $val) {
-                $stmt->bindParam(":".$name, $val);
-            }
-            $stmt->execute();
-            return ['status' => "success"];
-        } catch (PDOException $e) {
-            return ['status' => "failed", 'errormsg' =>
-            "Error inserting row: ".$e->getMessage()];
-        }
-
+        return $this->dbInsert($this->name, $this->validateTableKeys($data));
     }
 
     /**
      * process requests for modifying row in table
      *
-     * @param int $row          which row to edit
-     * @param array $data       POST data from Ajax as array
-     * @return bool success
+     * @param int $row
+     * @param array $data
+     * @return array success-status and error message
      */
-    //protected function processAlter(int $row, array $data)
-    public function processAlter(int $row, array $data)
+    public function dbAlterInThis(int $row, array $data)
     {
-        $connStatus = $this->connectToDb();
-        if ($connStatus['status'] == "failed") return $connStatus;
-        try {
-            $collist = [];
-            $paramlist = [];
-            $set = [];
-            foreach ($data as $name => $val) {
-                $set[] = "$name = :$name";
-            }
-            $stmt = $this->db->prepare("UPDATE $this->name "
-                ."SET ".join(",",$set)." WHERE id=$row");
-            foreach ($data as $name => $var) {
-                $stmt->bindParam(":".$name, $val);
-            }
-            $stmt->execute();
-            return ['status' => "success"];
-        } catch (PDOException $e) {
-            return ['status' => "failed", 'errormsg' =>
-            "Error altering row $row: ".$e->getMessage()];
-        }
+        return $this->dbAlter($this->name, $row, $this->validateTableKeys($data));
     }
 
     /**
      * process request for row deletion
      *
      * @param int $row
-     * @return bool success
+     * @return array success-status and error message
      */
-    //protected function processDelete(int $row)
-    public function processDelete(int $row)
+    public function dbDeleteFromThis(int $row)
     {
-        $connStatus = $this->connectToDb();
-        if ($connStatus['status'] == "failed") return $connStatus;
-        try {
-            $this->db->exec("DELETE FROM $this->name WHERE id=$row");
-            return ['status' => "success"];
-        } catch (PDOException $e) {
-            return ['status' => "failed", 'errormsg' =>
-            "Error inserting row: ".$e->getMessage()];
-        }
-    }
-
-    /**
-     * process arbitrary SELECT request
-     *
-     * @param array (string) columns    which columns to select
-     * @param string table              table to select from
-     * @param array where               ['condition',...]
-     */
-    public function processSelect(
-        array $columns = ['*'], 
-        string $table = '', 
-        array $where = []
-    )
-    {
-        $connStatus = $this->connectToDb();
-        if ($connStatus['status'] == "failed") return $connStatus;
-        try {
-            $tn = empty($table) ? $this->name : $table;
-            $ws = empty($where) ? "" : " WHERE ".join(',',$where);
-            $stmt = $this->db->prepare(
-                "SELECT ".join(",",$columns)." "
-                ."FROM $tn$ws"
-            );
-            $stmt->execute();
-            $stmt->setFetchMode(PDO::FETCH_ASSOC);
-            return $stmt->fetchAll();
-        } catch (PDOException $e) {
-            return ['errormsg' =>
-                "Error fetching data: ".$e->getMessage()];
-        }
+        return $this->dbDelete($this->name, $row);
     }
 
     /**
      * process a database request
      * parse incoming request from JSON to array and pass it on to 
-     * processSelect(), processInsert() or processAlter()
+     * database access methods
      *
-     * @param array $data      GET data from Ajax as JSON ($_GET)
-     * @return string answer from database
+     * @param array $data      GET data from Ajax as array ($_GET)
+     * @return string answer from database encoded in JSON
      */
     public function processRequest(array $data)
     {
-        $ret = '';
+        $ret = [];
         switch ($data['operation']) {
-        case 'SELECT PAGE':
-            $ret = $this->processSelectPage();
+        case 'SELECT TABLE':
+            $ret = $this->dbSelectThisTable();
             break;
         case 'INSERT':
-            $ret = $this->processInsert($data['data']); 
+            $ret = $this->dbInsertIntoThis($data['data']); 
             break;
         case 'DELETE':
-            $ret = $this->processDelete($data['row']);
+            $ret = $this->dbDeleteFromThis($data['row']);
             break;
         case 'ALTER':
-            $ret = $this->processAlter($data['row'], $data['data']);
+            $ret = $this->dbAlterInThis($data['row'], $data['data']);
             break;
         }
         return json_encode($ret);

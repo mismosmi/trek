@@ -3,6 +3,7 @@ define('PHP_ROOT', dirname(__DIR__).'/');
 define('HTML_ROOT', '../');
 define('HTML_FILE', basename(__FILE__));
 define('CONFIG_TEST', PHP_ROOT.'tests/testconfig.php');
+define('SUCCESS', ['success' => True]);
 
 require_once(PHP_ROOT."php/table.inc.php");
 
@@ -13,7 +14,7 @@ class TableTest extends TestCase
 
     public function testAddAndGetScripts()
     {
-        $table = new Table("testtable", "Test-ID", "testpage", '', CONFIG_TEST);
+        $table = new Table("testtable", "testpage", '', CONFIG_TEST);
 
         $table->addJs('test3.js');
 
@@ -28,7 +29,7 @@ class TableTest extends TestCase
 
     public function testNavigationMainExample()
     {
-        $table = new Table("testtable", "Test-ID", "testpage", '', CONFIG_TEST);
+        $table = new Table("testtable", "testpage", '', CONFIG_TEST);
         
         $correct = 
              "<ul class=\"navbar-nav\">\n"
@@ -45,7 +46,7 @@ class TableTest extends TestCase
 
     public function testAddCssAndGetHead()
     {
-        $table = new Table('testtable', "Test-ID", 'testpage', 'specialfavicon.ico', CONFIG_TEST);
+        $table = new Table('testtable', 'testpage', 'specialfavicon.ico', CONFIG_TEST);
         $table->addCss('test3.css');
 
         $correct =
@@ -69,7 +70,7 @@ class TableTest extends TestCase
 
     public function testGetNavbar()
     {
-        $table = new Table('testtable', "Test-ID", 'testpage', '', CONFIG_TEST);
+        $table = new Table('testtable', 'testpage', '', CONFIG_TEST);
         $correct = 
              "<nav class=\"navbar navbar-expand-md navbar-dark bg-dark fixed-top\">\n"
             ."<a href=\"index.php\" class=\"navbar-brand italic\">TEST</a>\n"
@@ -81,7 +82,8 @@ class TableTest extends TestCase
 
     public function testAddColAndGetTable()
     {
-        $table = new Table('testtable', "Test-ID", 'Testpage', '', CONFIG_TEST);
+        $table = new Table('testtable', 'Testpage', '', CONFIG_TEST);
+        $table->setIdCol('Test-ID');
         $table->addDataCol('testcol1','VARCHAR','Testcol1','',True);
         $table->addAutoCol('testcol2','Testcol2','testcol1');
         $correct =
@@ -116,7 +118,7 @@ class TableTest extends TestCase
 
     public function testAddColAndGetFormElements()
     {
-        $table = new Table('testtable', 'Table-ID', 'testpage', '', CONFIG_TEST);
+        $table = new Table('testtable', 'testpage', '', CONFIG_TEST);
         $table->addDataCol('testcol1','VARCHAR','Testcol1','',True);
         $table->addAutoCol('testcol2','Testcol2','testcol1');
         $correct = [
@@ -130,104 +132,106 @@ class TableTest extends TestCase
 
     public function testCreateAndDropTable()
     {
-        $table = new Table('testtable', 'Table-ID', 'testpage', '', CONFIG_TEST);
-        $table->addDataCol('testcol1','VARCHAR','Testcol1','',True);
+        $table = new Table('testtable', 'title', '', CONFIG_TEST);
+        $table->addDataCol('testcol','VARCHAR','Testcol1','',True);
         $table->addAutoCol('testcol2','Testcol2','testcol1');
-        $success = ['status' => "success"];
 
-        $this->assertEquals($success, $table->createTable());
-        $this->assertEquals($success, $table->dropTable());
+        $this->assertEquals(SUCCESS, $table->dbCreateThisTable());
+        $this->assertEquals(SUCCESS, $table->dbDropThisTable());
     }
 
-    public function testProcessSelectPageEmpty()
+    public function testDbSelectTableEmpty()
     {
-        $table = new Table('testtable', 'Table-ID', 'testpage', '', CONFIG_TEST);
+        $table = new Table('testtable', 'testpage', '', CONFIG_TEST);
         $table->addDataCol('testcol1','VARCHAR','Testcol1','',True);
         $table->addAutoCol('testcol2','Testcol2','tv.testcol1');
-        $correct = ['status' => "success", 'data' =>
+        $correct = ['success' => True, 'data' =>
             ['mainValues' => [], 'sideValues' => []]];
 
-        $table->createTable();
-        $this->assertEquals($correct, $table->processSelectPage());
+        $this->assertEquals($correct, $table->dbSelectThisTable());
     }
 
-    public function testProcessInsertAndDelete()
+    public function testDbInsertAndDelete()
     {
-        $table = new Table('testtable', 'Table-ID', 'testpage', '', CONFIG_TEST);
+        $table = new Table('testtable', 'testpage', '', CONFIG_TEST);
         $table->addDataCol('testcol1','VARCHAR','Testcol1','',True);
         $table->addAutoCol('testcol2','Testcol2','testcol1');
         $data = ['testcol1' => 'exampledata3'];
-        $success = ['status' => "success"];
 
-        $table->createTable();
-        $initstate = $table->processSelectPage();
-        $this->assertEquals($success, $table->processInsert($data));
-        $this->assertNotEquals($initstate, $table->processSelectPage());
-        $this->assertEquals($success, $table->processDelete(1));
-        $this->assertEquals($initstate, $table->processSelectPage());
+        $table->dbCreateThisTable();
+        $initstate = $table->dbSelectThisTable();
+        $this->assertEquals(SUCCESS, $table->dbInsertIntoThis($data));
+        $this->assertNotEquals($initstate, $table->dbSelectThisTable());
+        $this->assertEquals(SUCCESS, $table->dbDeleteFromThis(1));
+        $this->assertEquals($initstate, $table->dbSelectThisTable());
     }
 
-    public function testProcessSelect()
+    public function testDbSelect()
     {
-        $t = new Table('testtable', 'Test-ID', 'testpage', '', CONFIG_TEST);
+        $t = new Table('testtable', 'testpage', '', CONFIG_TEST);
         $t->addDataCol('testcol1','VARCHAR','Testcol1','',True);
-        $t->createTable();
-        $t->processInsert(['testcol1' => 'exampledata']);
-        $t->processInsert(['testcol1' => 'exampledata2']);
-        $t->processInsert(['testcol1' => 'e3']);
+        $t->dbCreateThisTable();
+        $t->dbInsertIntoThis(['testcol1' => 'exampledata']);
+        $t->dbInsertIntoThis(['testcol1' => 'exampledata2']);
+        $t->dbInsertIntoThis(['testcol1' => 'e3']);
 
         $result = [['id'=>'1', 'testcol1'=>'exampledata'],
             ['id'=>'2', 'testcol1'=>'exampledata2'],
             ['id'=>'3', 'testcol1'=>'e3']];
-        $this->assertEquals($result, $t->processSelect(['id','testcol1']));
+        $this->assertEquals($result, $t->dbSelect('testtable', ['id','testcol1'])['data']);
     }
 
-    public function testProcessAlter()
+    public function testDbAlter()
     {
-        $table = new Table('testtable', '', 'testpage', '', CONFIG_TEST);
+        $table = new Table('testtable', 'testpage', '', CONFIG_TEST);
         $table->addDataCol('testcol1','VARCHAR','Testcol1','',True);
         $table->addAutoCol('testcol2','Testcol2','testcol1');
 
-        $table->createTable();
-        $table->processInsert(['testcol1'=>'exampledata1']);
-        $table->processInsert(['testcol1'=>'exampledata2']);
-        $initstate = $table->processSelect();
+        $table->dbCreateThisTable();
+        $table->dbInsertIntoThis(['testcol1'=>'exampledata1']);
+        $table->dbInsertIntoThis(['testcol1'=>'exampledata2']);
         
         $data = ['testcol1' => 'modified data'];
-        $this->assertEquals(['status' => "success"], $table->processAlter(2,$data));
+        $this->assertEquals(['success' => True], $table->dbAlterInThis(2,$data));
         $correct = [['id' => 1, 'testcol1' => 'exampledata1'],
                     ['id' => 2, 'testcol1' => 'modified data']];
         $columns = ['id', 'testcol1'];
-        $this->assertEquals($correct, $table->processSelect($columns));
+        $this->assertEquals($correct, $table->dbSelect('testtable', $columns)['data']);
     }
 
     public function testProcessRequest()
     {
-        $table = new Table('testtable','', 'testpage', '', CONFIG_TEST);
+        $table = new Table('testtable', 'testpage', '', CONFIG_TEST);
         $table->addDataCol('testcol1','VARCHAR','Testcol1','',True);
         $table->addAutoCol('testcol2','Testcol2','testcol1');
         $data_raw_insert = ["operation" => "INSERT", 
             "data" => ["testcol1" => "exampledata"]];
-        $data_raw_select_page = ["operation" => "SELECT PAGE"];
+        $data_raw_select_page = ["operation" => "SELECT TABLE"];
         $data_raw_alter = ["operation" => "ALTER",
             "row" => 1, 
             "data" => ["testcol1" => "changed example data"]];
         $data_raw_delete = ["operation" => "DELETE", "row" => 1];
 
-        $table->createTable();
-        $this->assertEquals('{"status":"success"}',
+        $table->dbCreateThisTable();
+        $this->assertEquals('{"success":true}',
             $table->processRequest($data_raw_insert));
-        $this->assertEquals(['testcol1' => 'exampledata'],
-            $table->processSelect(['testcol1']));
-        $this->assertEquals('{"status":"success"}',
+
+        $this->assertEquals([['testcol1' => 'exampledata']],
+            $table->dbSelect('testtable', ['testcol1'])['data']);
+
+        $this->assertEquals('{"success":true}',
             $table->processRequest($data_raw_alter));
-        $this->assertEquals(['testcol1' => 'changed example data'],
-            $table->processSelect(['testcol1']));
-        $this->assertEquals('{"status":"success"}',
+
+        $this->assertEquals([['testcol1' => 'changed example data']],
+            $table->dbSelect('testtable', ['testcol1'])['data']);
+
+        $this->assertEquals('{"success":true}',
             $table->processRequest($data_raw_delete));
-        $correct = '{"status":"success", '
+
+        $correct = '{"success":true,'
             .'"data":{"mainValues":[],"sideValues":[]}}';
-        $this->assertEquals($success, $table->processRequest($data_raw_select_page));
+        $this->assertEquals($correct, 
+            $table->processRequest($data_raw_select_page));
 
     }
 
