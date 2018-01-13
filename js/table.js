@@ -1,4 +1,21 @@
 function Tv(mainValues, sideValues) {
+    for (var rn in mainValues) {
+        for (var tn in sideValues) {
+            mainValues[rn][tn] = sideValues[tn][mainValues[rn][tn+'-id']];
+        }
+    }
+    $.extend(this,mainValues,sideValues);
+    this._pos = 0;
+    this._tn = sideValues.keys();
+
+    this._ = function() {
+        return this[_pos];
+    };
+    this._add = function() {
+        for (var tn in 
+
+}
+function Tv(mainValues, sideValues) {
     this.mainValues = mainValues;
     this.sideValues = sideValues;
     for (var rn in this.mainValues) {
