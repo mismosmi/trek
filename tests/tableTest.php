@@ -13,7 +13,7 @@ class TableTest extends TestCase
 
     public function testAddAndGetScripts()
     {
-        $table = new Table("testtable", "testpage", '', CONFIG_TEST);
+        $table = new Table("testtable", "Test-ID", "testpage", '', CONFIG_TEST);
 
         $table->addJs('test3.js');
 
@@ -28,7 +28,7 @@ class TableTest extends TestCase
 
     public function testNavigationMainExample()
     {
-        $table = new Table("testtable", "testpage", '', CONFIG_TEST);
+        $table = new Table("testtable", "Test-ID", "testpage", '', CONFIG_TEST);
         
         $correct = 
              "<ul class=\"navbar-nav\">\n"
@@ -45,7 +45,7 @@ class TableTest extends TestCase
 
     public function testAddCssAndGetHead()
     {
-        $table = new Table('testtable', 'testpage', 'specialfavicon.ico', CONFIG_TEST);
+        $table = new Table('testtable', "Test-ID", 'testpage', 'specialfavicon.ico', CONFIG_TEST);
         $table->addCss('test3.css');
 
         $correct =
@@ -69,7 +69,7 @@ class TableTest extends TestCase
 
     public function testGetNavbar()
     {
-        $table = new Table('testtable', 'testpage', '', CONFIG_TEST);
+        $table = new Table('testtable', "Test-ID", 'testpage', '', CONFIG_TEST);
         $correct = 
              "<nav class=\"navbar navbar-expand-md navbar-dark bg-dark fixed-top\">\n"
             ."<a href=\"index.php\" class=\"navbar-brand italic\">TEST</a>\n"
@@ -81,19 +81,32 @@ class TableTest extends TestCase
 
     public function testAddColAndGetTable()
     {
-        $table = new Table('testtable', 'testpage', '', CONFIG_TEST);
+        $table = new Table('testtable', "Test-ID", 'Testpage', '', CONFIG_TEST);
         $table->addDataCol('testcol1','VARCHAR','Testcol1','',True);
         $table->addAutoCol('testcol2','Testcol2','testcol1');
         $correct =
              "<div class=\"trek-table\" id=\"table-testtable\">\n"
             ."<table class=\"table-striped table-hover table-condensed col\">\n"
-            ."<thead><tr>\n"
-            ."<th>Testcol1</th>\n"
-            ."<th>Testcol2</th>\n"
-            ."<th></th>\n"
-            ."</tr></thead>\n"
+            ."<thead>\n"
+            ."<tr>\n"
+            ."<th data-col=\"testtable-id\">Test-ID</th>\n"
+            ."<th data-col=\"testcol1\">Testcol1</th>\n"
+            ."<th data-col=\"testcol2\">Testcol2</th>\n"
+            ."<th data-col=\"timestamp\">Edited</th>\n"
+            ."<th data-col=\"controls\"></th>\n"
+            ."</tr>\n"
+            ."</thead>\n"
             ."<tbody>\n"
-            .$table->getForm()
+            ."<tr class=\"trek-form\">\n"
+            ."<td></td>\n"
+            ."<td><input type=\"text\" class=\"form-control\" "
+            ."id=\"testcol1\" required></td>\n"
+            ."<td><input type=\"text\" class=\"form-control readonly\" "
+            ."id=\"testcol2\"></td>\n"
+            ."<td></td>\n"
+            ."<td><button type=\"submit\" class=\"btn btn-default\">Save"
+            ."</button></td>\n"
+            ."</tr>\n"
             ."</tbody>\n"
             ."</table>\n"
             ."</div>\n";
@@ -101,29 +114,23 @@ class TableTest extends TestCase
         $this->assertEquals($correct, $table->getTable());
     }
 
-    public function testAddColAndGetForm()
+    public function testAddColAndGetFormElements()
     {
-        $table = new Table('testtable', 'testpage', '', CONFIG_TEST);
+        $table = new Table('testtable', 'Table-ID', 'testpage', '', CONFIG_TEST);
         $table->addDataCol('testcol1','VARCHAR','Testcol1','',True);
         $table->addAutoCol('testcol2','Testcol2','testcol1');
-        $correct =
-             "<tr>\n"
-            ."<form method=\"POST\">\n"
-            ."<td><input type=\"text\" class=\"form-control\" "
-            ."id=\"testcol1\"></td>\n"
-            ."<td><input type=\"text\" class=\"form-control readonly\" "
-            ."id=\"testcol2\"></td>\n"
-            ."<td><button type=\"submit\" class=\"btn btn-default\">Submit"
-            ."</button></td>\n"
-            ."</form>\n"
-            ."</tr>\n";
+        $correct = [
+            'testcol1' => '<input type="text" class="form-control" id="testcol1" required>',
+            'testcol2' => '<input type="text" class="form-control readonly" id="testcol2">',
+            'controls' => '<button type="submit" class="btn btn-default">Save</button>'
+        ];
 
-        $this->assertEquals($correct, $table->getForm());
+        $this->assertEquals($correct, $table->getFormElements());
     }
 
     public function testCreateAndDropTable()
     {
-        $table = new Table('testtable', 'testpage', '', CONFIG_TEST);
+        $table = new Table('testtable', 'Table-ID', 'testpage', '', CONFIG_TEST);
         $table->addDataCol('testcol1','VARCHAR','Testcol1','',True);
         $table->addAutoCol('testcol2','Testcol2','testcol1');
 
@@ -133,7 +140,7 @@ class TableTest extends TestCase
 
     public function testProcessSelectPageEmpty()
     {
-        $table = new Table('testtable', 'testpage', '', CONFIG_TEST);
+        $table = new Table('testtable', 'Table-ID', 'testpage', '', CONFIG_TEST);
         $table->addDataCol('testcol1','VARCHAR','Testcol1','',True);
         $table->addAutoCol('testcol2','Testcol2','tv.testcol1');
         $correct = ['mainValues' => [], 'sideValues' => []];
@@ -144,7 +151,7 @@ class TableTest extends TestCase
 
     public function testProcessInsertAndDelete()
     {
-        $table = new Table('testtable', 'testpage', '', CONFIG_TEST);
+        $table = new Table('testtable', 'Table-ID', 'testpage', '', CONFIG_TEST);
         $table->addDataCol('testcol1','VARCHAR','Testcol1','',True);
         $table->addAutoCol('testcol2','Testcol2','testcol1');
         $data = ['testcol1' => 'exampledata3'];
@@ -159,7 +166,7 @@ class TableTest extends TestCase
 
     public function testProcessSelect()
     {
-        $t = new Table('testtable', 'testpage', '', CONFIG_TEST);
+        $t = new Table('testtable', 'Test-ID', 'testpage', '', CONFIG_TEST);
         $t->addDataCol('testcol1','VARCHAR','Testcol1','',True);
         $t->createTable();
         $t->processInsert(['testcol1' => 'exampledata']);
@@ -174,7 +181,7 @@ class TableTest extends TestCase
 
     public function testProcessAlter()
     {
-        $table = new Table('testtable', 'testpage', '', CONFIG_TEST);
+        $table = new Table('testtable', '', 'testpage', '', CONFIG_TEST);
         $table->addDataCol('testcol1','VARCHAR','Testcol1','',True);
         $table->addAutoCol('testcol2','Testcol2','testcol1');
 

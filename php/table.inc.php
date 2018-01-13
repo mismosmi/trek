@@ -26,6 +26,12 @@ class Table extends Page
      */
     protected $name;
     /**
+     * display name for table-ID
+     *
+     * @var string
+     */
+    protected $idname;
+    /**
      * Open database connection
      *
      * @var PDO
@@ -49,6 +55,7 @@ class Table extends Page
     * passes parameters to parent constructor and adds table.css and table.js
     *
     * @param string $name       unique table name for sql table
+    * @param string $idname     display name for table-id
     * @param string $title      <title>config->title | $title</title>
     * @param string $favicon    set page-specific favicon, defaults to setting
     *                           in config.php
@@ -56,12 +63,14 @@ class Table extends Page
     */
     public function __construct(
         string $name,
+        string $idname = '',
         string $title = '',
         string $favicon = '',
         string $configFile = ''
     ) 
     {
         $this->name = $name;
+        $this->idname = $idname;
         parent::__construct($title, $favicon, $configFile);
         $this->addCss('table.css');
         $this->addJs('table.js');
@@ -148,28 +157,41 @@ class Table extends Page
     }
 
     /**
+     * set a custom name for id-column
+     *
+     * @param string $name
+     */
+    public function setIdCol(string $name)
+    {
+        $this->idname = $name;
+    }
+
+    /**
      * generate html <div><table> skeleton with <th> tags for the columns
      * and insert getForm() as first table row
      *
      * @return string <table> tag
      */
-    //protected function getTable($formRow = '')
     public function getTable()
     {
-        $tableHeaders = '';
+        $formElements = $this->getFormElements();
+        $headerRow = "<tr>\n<th data-col=\"$this->name-id\">$this->idname</th>\n";
+        $formRow = "<tr class=\"trek-form\">\n<td></td>\n";
         foreach ($this->col as $col) {
-            $tableHeaders .= "<th>{$col['title']}</th>\n";
+            $headerRow .= "<th data-col=\"{$col['name']}\">{$col['title']}</th>\n";
+            $formRow .= "<td>{$formElements[$col['name']]}</td>\n";
         }
-
-        $formRow = $this->getForm();
+        $headerRow .= "<th data-col=\"timestamp\">Edited</th>\n"
+            ."<th data-col=\"controls\"></th>\n</tr>\n";
+        $formRow .= "<td></td>\n"
+            ."<td>{$formElements['controls']}</td>\n</tr>\n"; 
 
         return 
              "<div class=\"trek-table\" id=\"table-$this->name\">\n"
             ."<table class=\"table-striped table-hover table-condensed col\">\n"
-            ."<thead><tr>\n"
-            .$tableHeaders
-            ."<th></th>\n"
-            ."</tr></thead>\n"
+            ."<thead>\n"
+            .$headerRow
+            ."</thead>\n"
             ."<tbody>\n"
             .$formRow
             ."</tbody>\n"
@@ -180,37 +202,32 @@ class Table extends Page
     /**
      * generate form to append new entries to the table or modify existing ones
      *
-     * @return string <form> tag
+     * @return array elements of the form
      */
     //protected function getForm()
-    public function getForm()
+    public function getFormElements()
     {
-        $tds = '';
+        $elements = [];
         foreach ($this->col as $col) {
             if ($col['class'] === Column::DataCol) {
                 $placeholder = empty($col['placeholder']) ? ""
                     : " placeholder=\"{$col['placeholder']}\"";
                 $required = $col['required'] ? " required" : "";
-                $tds .=
-                    "<td><input type=\"text\" class=\"form-control\" "
+                $elements[$col['name']] =
+                    "<input type=\"text\" class=\"form-control\" "
                     ."id=\"{$col['name']}\""
-                    ."$placeholder></td>\n";
+                    ."$placeholder$required>";
             } elseif ($col['class'] === Column::AutoCol) {
-                $tds .=
-                    "<td><input type=\"text\" "
+                $elements[$col['name']] =
+                    "<input type=\"text\" "
                     ."class=\"form-control readonly\" "
-                    ."id=\"{$col['name']}\"></td>\n";
+                    ."id=\"{$col['name']}\">";
             }
         }
-        $tds .= "<td><button type=\"submit\" class=\"btn btn-default\">Submit"
-            ."</button></td>\n";
+        $elements['controls'] = "<button type=\"submit\" "
+            ."class=\"btn btn-default\">Save</button>";
 
-        return
-             "<tr>\n"
-            ."<form method=\"POST\">\n"
-            .$tds
-            ."</form>\n"
-            ."</tr>\n";
+        return $elements;
     }
 
     /**

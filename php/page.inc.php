@@ -127,7 +127,8 @@ class Page {
     public function getHead(string $description = '') {
         $cssIncludeString = '';
         foreach ($this->_includeCss as $path){
-            $cssIncludeString .= "<link rel=\"stylesheet\" type=\"text/css\" href=\"$path\">\n";
+            $cssIncludeString .= 
+                "<link rel=\"stylesheet\" type=\"text/css\" href=\"$path\">\n";
         }
             
         return 

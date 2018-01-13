@@ -4,12 +4,12 @@
 define('PHP_ROOT', '');
 define('HTML_ROOT', '');
 define('HTML_FILE', basename(__FILE__));
-require_once('php/site_builder.inc.php');
-$b = new site_builder('Home');
-echo $b->head('very simple inventory control'); 
+require_once('php/page.inc.php');
+$p = new Page('Trek');
+echo $p->getHead('very simple inventory control'); 
 ?>
 <body>
-<?php echo $b->navbar(); ?>
+<?php echo $p->getNavbar(); ?>
 <main role="main" class="container-fluid">
     <div class="row">
         <div class="col-md-3"></div>
@@ -20,11 +20,11 @@ echo $b->head('very simple inventory control');
     <div class="row">
         <div class="col-md-1"></div>
         <div class="col-md-10 col-md-offset-1">
-            <?php echo $b->navigation_main('','btn btn-default btn-lg btn-block',''); ?>
+            <?php echo $p->getMainNavigation('','btn btn-default btn-lg btn-block',''); ?>
         </div>
     </div>
 
 </main>
-<?php echo $b->scripts(); ?>
+<?php echo $p->getScripts(); ?>
 </body>
 </html>
