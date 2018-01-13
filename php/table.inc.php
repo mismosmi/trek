@@ -238,7 +238,7 @@ class Table extends Page
     //protected function connectToDb()
     public function connectToDb()
     {
-        if ($this->db != NULL) return True;
+        if ($this->db != NULL) return ['status' => "success"];
 
         $dbdata = $this->_config['database'];
         try {
@@ -250,11 +250,11 @@ class Table extends Page
             }
             $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         } catch(PDOException $e) {
-            die("Connection failed: ".$e->getMessage());
-            return False;
+            return ['status' => "failed", 'errormsg' =>
+            "Connection failed: ".$e->getMessage()];
         }
         $this->db = $conn;
-        return True;
+        return ['status' => "success"];
     }
 
     /**
@@ -265,7 +265,8 @@ class Table extends Page
     //protected function createTable()
     public function createTable()
     {
-        if(!$this->connectToDb()) return False;
+        $connStatus = $this->connectToDb();
+        if ($connStatus['status'] == "failed") return $connStatus;
 
         try {
             $be = $this->_config['database']['backend'];
@@ -286,10 +287,11 @@ class Table extends Page
             if ($be == 'mysql') $query .= ", PRIMARY KEY (id)";
             $query .= ")";
             $this->db->exec($query);
+            return ['status' => "success"];
         } catch (PDOException $e) {
-            die("failed creating table $this->name: ".$e->getMessage());
+            return ['status' => "failed", 'errormsg' => 
+                "failed creating table $this->name: ".$e->getMessage()];
         }
-        return True;
     }
 
     /**
@@ -300,15 +302,17 @@ class Table extends Page
     //protected function dropTable()
     public function dropTable()
     {
-        if(!$this->connectToDb()) return False;
+        $connStatus = $this->connectToDb();
+        if ($connStatus['status'] == "failed") return $connStatus;
 
         try {
             $query = "DROP TABLE $this->name";
             $this->db->exec($query);
+            return ['status' => "success"];
         } catch (PDOException $e) {
-            die("failed dropping table $this->name: ".$e->getMessage());
+            return ['status' => "failed", 'errormsg' =>
+                "failed dropping table $this->name: ".$e->getMessage()];
         }
-        return True;
     }
 
     /**
@@ -323,7 +327,8 @@ class Table extends Page
     //protected function processSelect(int $pageNumber = -1)
     public function processSelectPage(int $pageNumber = -1)
     {
-        if(!$this->connectToDb()) return False;
+        $connStatus = $this->connectToDb();
+        if ($connStatus['status'] == "failed") return $connStatus;
         try {
             $collist = ['id','entrydate'];
             foreach ($this->col as $col) {
@@ -348,10 +353,18 @@ class Table extends Page
                 $stmt->setFetchMode(PDO::FETCH_ASSOC);
                 $sideValues[$tablename] = $stmt->fetchAll();
             }
+            return ['status' => "success", 'data' => 
+                ['mainValues' => $mainValues, 'sideValues' => $sideValues]];
         } catch (PDOException $e) {
-            die("Error fetching data: ".$e->getMessage());
+            $createTableResult = $this->createTable();
+            if ($createTableResult['status'] == "success") {
+                return ['status' => "failed", 'errormsg' => 
+                    'Created Table. Please retry'];
+            }
+            return ['status' => "failes", 'errormsg' =>
+                "Error fetching data: ".$e->getMessage()
+                ." ".$createTableResult['errormsg']];
         }
-        return ['mainValues' => $mainValues, 'sideValues' => $sideValues];
     }
 
     /**
@@ -363,7 +376,8 @@ class Table extends Page
     //protected function processInsert(array $data)
     public function processInsert(array $data)
     {
-        if(!$this->connectToDb()) return False;
+        $connStatus = $this->connectToDb();
+        if ($connStatus['status'] == "failed") return $connStatus;
         try {
             $collist = [];
             $paramlist = [];
@@ -378,10 +392,11 @@ class Table extends Page
                 $stmt->bindParam(":".$name, $val);
             }
             $stmt->execute();
+            return ['status' => "success"];
         } catch (PDOException $e) {
-            die("Error inserting row: ".$e->getMessage());
+            return ['status' => "failed", 'errormsg' =>
+            "Error inserting row: ".$e->getMessage()];
         }
-        return True;
 
     }
 
@@ -395,7 +410,8 @@ class Table extends Page
     //protected function processAlter(int $row, array $data)
     public function processAlter(int $row, array $data)
     {
-        if(!$this->connectToDb()) return False;
+        $connStatus = $this->connectToDb();
+        if ($connStatus['status'] == "failed") return $connStatus;
         try {
             $collist = [];
             $paramlist = [];
@@ -409,11 +425,11 @@ class Table extends Page
                 $stmt->bindParam(":".$name, $val);
             }
             $stmt->execute();
-
+            return ['status' => "success"];
         } catch (PDOException $e) {
-            die("Error altering row $row: ".$e->getMessage());
+            return ['status' => "failed", 'errormsg' =>
+            "Error altering row $row: ".$e->getMessage()];
         }
-        return True;
     }
 
     /**
@@ -425,13 +441,15 @@ class Table extends Page
     //protected function processDelete(int $row)
     public function processDelete(int $row)
     {
-        if(!$this->connectToDb()) return False;
+        $connStatus = $this->connectToDb();
+        if ($connStatus['status'] == "failed") return $connStatus;
         try {
             $this->db->exec("DELETE FROM $this->name WHERE id=$row");
+            return ['status' => "success"];
         } catch (PDOException $e) {
-            die("Error inserting row: ".$e->getMessage());
+            return ['status' => "failed", 'errormsg' =>
+            "Error inserting row: ".$e->getMessage()];
         }
-        return True;
     }
 
     /**
@@ -447,7 +465,8 @@ class Table extends Page
         array $where = []
     )
     {
-        if(!$this->connectToDb()) return False;
+        $connStatus = $this->connectToDb();
+        if ($connStatus['status'] == "failed") return $connStatus;
         try {
             $tn = empty($table) ? $this->name : $table;
             $ws = empty($where) ? "" : " WHERE ".join(',',$where);
@@ -459,7 +478,8 @@ class Table extends Page
             $stmt->setFetchMode(PDO::FETCH_ASSOC);
             return $stmt->fetchAll();
         } catch (PDOException $e) {
-            die("Error fetching data: ".$e->getMessage());
+            return ['errormsg' =>
+                "Error fetching data: ".$e->getMessage()];
         }
     }
 
@@ -468,33 +488,27 @@ class Table extends Page
      * parse incoming request from JSON to array and pass it on to 
      * processSelect(), processInsert() or processAlter()
      *
-     * @param string data_raw   POST data from Ajax as JSON ($_POST)
+     * @param array $data      GET data from Ajax as JSON ($_GET)
      * @return string answer from database
      */
-    public function processRequest(string $data_raw)
+    public function processRequest(array $data)
     {
-        $dec = json_decode($data_raw, True);
-        $ret_raw = '';
-        switch ($dec['operation']) {
+        $ret = '';
+        switch ($data['operation']) {
         case 'SELECT PAGE':
-            $ret = ['operation' => 'SELECT PAGE', 'status' => 'success',
-            'data' => $this->processSelectPage()];
-            $ret_raw = json_encode($ret);
+            $ret = $this->processSelectPage();
             break;
         case 'INSERT':
-            if ($this->processInsert($dec['data'])) 
-                $ret_raw = '{"operation": "INSERT", "status": "success"}';
+            $ret = $this->processInsert($data['data']); 
             break;
         case 'DELETE':
-            if ($this->processDelete($dec['row'])) 
-                $ret_raw = '{"operation": "DELETE", "status": "success"}';
+            $ret = $this->processDelete($data['row']);
             break;
         case 'ALTER':
-            if ($this->processAlter($dec['row'], $dec['data']))
-                $ret_raw = '{"operation": "ALTER", "status": "success"}';
+            $ret = $this->processAlter($data['row'], $data['data']);
             break;
         }
-        die($ret_raw);
+        return json_encode($ret);
     }
 
 }
