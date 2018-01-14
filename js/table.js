@@ -1,40 +1,47 @@
-function Tv(mainValues, sideValues) {
+function TableValues(tableName, mainValues, sideValues) {
+    this._id = tableName+'-id';
+    this._nextRow = 1;
     for (var rn in mainValues) {
         for (var tn in sideValues) {
             mainValues[rn][tn] = sideValues[tn][mainValues[rn][tn+'-id']];
         }
+        this[mainValues[rn][this._id]] = mainValues[rn];
+        this._nextRow = mainValues[rn][this._id];
     }
-    $.extend(this,mainValues,sideValues);
-    this._pos = 0;
-    this._tn = sideValues.keys();
+    for (var tn in sideValues) {
+        this[tn] = sideValues[tn];
+    }
 
-    this._ = function() {
-        return this[_pos];
+    this._tableNames = sideValues.keys();
+    this._currentRow = _nextRow;
+
+    this._getRow = function(at) {
+        if (typeof at === 'undefined') at = this._nextRow;
+        this._currentRow = at;
+        return this[at];
     };
-    this._add = function() {
-        for (var tn in 
-
-}
-function Tv(mainValues, sideValues) {
-    this.mainValues = mainValues;
-    this.sideValues = sideValues;
-    for (var rn in this.mainValues) {
-        for (var tn in this.sideValues) {
-            this.mainValues[rn][tn] = this.sideValues[tn][this.mainValues[rn][tn+'-id']];
+    this._insertRow = function(at, row) {
+        for (var tn in this._tableNames) {
+            row[tn] = this[tn][row[tn+'-id']];
         }
-    }
-
-    this.get = function(at) {
-        return $.extend({'+': },
-            this.mainValues,
-            this.sideValues,
-            this.mainValues[at]
-        );
+        this[at] = row;
+        this._nextRow = at+1;
     };
-    this.add = function(row) {
-        for (var tn in this.sideValues) {
-            row[tn] = this.sideValues[tn][row[tn+'-id']];
-        this.mainValues.push(row);
+    this._deleteRow = function(at) {
+        delete this[at];
+    };
+    this._alterRow = function(at, row) {
+        for (var tn in this._tableNames) {
+            row[tn] = this[tn][row[tn+'-id']];
+        }
+        this[at] = row;
+    };
+    this.each = function(doThis) {
+        for (var _index = 0; _index < this._currentRow; _index++) {
+            if (_index in this) {
+                doThis(_index, this[_index]);
+            }
+        }
     };
 }
 
@@ -60,12 +67,12 @@ function Trek(userVars) {
     this.appendRow = function(n,row) {
         console.log('appendrow: '+JSON.stringify(row));
         var tr = $('<tr></tr>');
-        var tv = this.tv.get(n);
+        var rv = this.tv._getRow(n);
         for (var i in this.columns) {
             var col = this.columns[i];
             console.log('for column '+col.name);
             if (col.class === 1) {
-                tr.append('<td>'+col.run(tv,n)+'</td>');
+                tr.append('<td>'+col.run(n,this.tv,rv)+'</td>');
             } else {
                 tr.append('<td>'+row[col.name]+'</td>');
             }
@@ -81,7 +88,10 @@ function Trek(userVars) {
             dataType: 'json',
             success: function(response) {
                 if (response.success) {
-                    _this.tv = Tv(response.data.mainValues, response.data.sideValues);
+                    _this.tv = TableValues(
+                        response.data.mainValues, 
+                        response.data.sideValues
+                    );
                     for (var n in response.data.mainValues) {
                         _this.appendRow(n,response.data.mainValues[n]);
                     }
@@ -129,19 +139,12 @@ function Trek(userVars) {
             });
         });
         _this.formDataFields.change(function() {
+            var rv = _this.tv._getRow();
             _this.formAutoFields.each(function() {
                 var col = _this.getColumnByName($(this).data('col'));
-                $(this).val(col['run']('+',_this.tv.get()));
+                $(this).val(col['run'](_this.tv._nextRow,_this.tv,rv));
             });
         });
-        for (var dcn in _this.formDataFields) {
-            var df = _this.formDataFields[dcn];
-            df.change(function() {
-                af.each
-                
-            });
-        }
-
     };
     this.edit = function() {};
     this.alter = function() {};
