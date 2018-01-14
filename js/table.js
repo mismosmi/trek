@@ -1,40 +1,55 @@
 function TableValues(tableName, mainValues, sideValues) {
-    this._id = tableName+'-id';
+    console.log('TableValues('+tableName+')');
+    console.log(mainValues);
+    this._id = tableName+'_id';
+    
     this._nextRow = 1;
     for (var rn in mainValues) {
         for (var tn in sideValues) {
-            mainValues[rn][tn] = sideValues[tn][mainValues[rn][tn+'-id']];
+            mainValues[rn][tn] = sideValues[tn][mainValues[rn][tn+'_id']];
         }
         this[mainValues[rn][this._id]] = mainValues[rn];
-        this._nextRow = mainValues[rn][this._id];
+        this._nextRow = mainValues[rn][this._id]+1;
     }
     for (var tn in sideValues) {
         this[tn] = sideValues[tn];
     }
 
-    this._tableNames = sideValues.keys();
-    this._currentRow = _nextRow;
+    this._tableNames = Object.keys(sideValues);
+    this._currentRow = this._nextRow;
 
-    this._getRow = function(at) {
-        if (typeof at === 'undefined') at = this._nextRow;
-        this._currentRow = at;
-        return this[at];
-    };
-    this._insertRow = function(at, row) {
-        for (var tn in this._tableNames) {
-            row[tn] = this[tn][row[tn+'-id']];
+    this._getRow = function(row) {
+        if (typeof row === 'undefined') {
+            return this[this._currentRow];
+        } else if (typeof row === 'object') {
+            for (var tn in this._tableNames) {
+                row[tn] = this[tn][at[tn+'_id']];
+            }
+            row[this._id] = this._nextRow;
+            this._currentRow = this._nextRow;
+            return row;
+        } else { 
+            this._currentRow = row;
+            return this[row];
         }
-        this[at] = row;
-        this._nextRow = at+1;
+    };
+    this._insertRow = function(row) {
+        for (var tn in this._tableNames) {
+            row[tn] = this[tn][row[tn+'_id']];
+        }
+        this._currentRow = row[this._id];
+        this[this._currentRow] = row;
+        this._nextRow = this._currentRow+1;
     };
     this._deleteRow = function(at) {
         delete this[at];
     };
-    this._alterRow = function(at, row) {
+    this._alterRow = function(row) {
         for (var tn in this._tableNames) {
-            row[tn] = this[tn][row[tn+'-id']];
+            row[tn] = this[tn][row[tn+'_id']];
         }
-        this[at] = row;
+        this[row[this._id]] = row;
+        this._currentRow = row[this._id];
     };
     this.each = function(doThis) {
         for (var _index = 0; _index < this._currentRow; _index++) {
@@ -49,12 +64,102 @@ function Trek(userVars) {
     this.tableBody = $('.trek-table tbody');
     this.ajaxUrl = window.location.href;
     this.columns = [];
+    this.tableName;
     for (var v in userVars) {
         this[v] = userVars[v];
     }
-    this.formDataFields = $('.trek-data');
-    this.formAutoFields = $('.trek-auto');
-    this.tv;
+
+    this.getInsertForm = function() {
+        var tr = $('<tr class="trek-form-insert"></tr>');
+        for (var i in this.columns) {
+            var col = this.columns[i];
+            if (col.class === 0) {
+                var input = $('<input type="text" class="form-control trek-data">');
+                input.data('col',col.name)
+                .attr('placeholder', col.placeholder)
+                .attr('required', col.required)
+                .on('input',this.updateInsert);
+                tr.append($('<td></td>').append(input));
+            } else if (col.class === 1) {
+                var input = $('<input type="text" class="form-control trek-auto">');
+                input.data('col',col.name);
+                tr.append($('<td></td>').append(input));
+            } else {
+                tr.append($('<td></td>'));
+            }
+        }
+        var cancelbutton = $('<button value="cancel" class="btn btn-default">Clear</button>');
+        tr.append(
+            $('<td></td>').append(
+                $('<button type="submit" value="save" class="btn btn-default">'
+                    +'Save</button>').click(this.saveThis),
+                $('<button value="cancel" class="btn btn-default">Clear</button>')
+                .click(function() {
+                    $('.trek-form-insert input').val('');
+                })
+            )
+        );
+        return tr;
+    };
+
+    this.getAlterForm = function(rv) {
+        var tr = $('<tr class="trek-form-alter"></tr>');
+        for (var i in this.columns) {
+            var col = this.columns[i];
+            if (col.class === 0) {
+                var input = $('<input type="text" class="form-control trek-data">');
+                input.data('col',col.name)
+                .attr('placeholder', col.placeholder)
+                .attr('required', col.required)
+                .on('input', this.updateAlter);
+                if (typeof rv !== 'undefined') {
+                    input.val(rv[col.name]);
+                }
+                tr.append($('<td></td>').append(input));
+            } else if (col.class === 1) {
+                var input = $('<input type="text" class="form-control trek-auto">');
+                input.data('col',col.name);
+                if (typeof rv !== 'undefined') {
+                    input.val(col.run(this.tv,rv));
+                }
+                tr.append($('<td></td>').append(input));
+            } else {
+                tr.append($('<td></td>').text(rv[col.name]));
+            }
+        }
+        tr.append(
+            $('<td></td>').append(
+                $('<button type="submit" value="save" class="btn btn-default">'
+                    +'Save</button>').click(this.editDone),
+                $('<button value="cancel" class="btn btn-default">Cancel</button>')
+                .click(this.editCancel),
+                $('<button value="delete" class="btn btn-default">Delete</button>')
+                .click(this.deleteThis)
+            )
+        );
+        return tr;
+    }
+
+    this.getRow = function(rv) {
+        var _this = this;
+        var tr = $('<tr data-id="'+rv[this.tableName+'_id']+'"></tr>');
+        for (var i in this.columns) {
+            var col = this.columns[i];
+            if (col.class === 1) {
+                tr.append('<td>'+col.run(this.tv,rv)+'</td>');
+            } else {
+                tr.append('<td>'+rv[col.name]+'</td>');
+            }
+        }
+        tr.append(
+            $('<td></td>').append(
+                $('<button value="edit" class="btn btn-default">Edit</button>')
+                    .click(this.editThis)
+            )
+        );
+        tr.dblclick(this.editThis);
+        return tr;
+    }
 
     this.getColumnByName = function(name) {
         for (var i in this.columns) {
@@ -64,37 +169,24 @@ function Trek(userVars) {
         }
     }
 
-    this.appendRow = function(n,row) {
-        console.log('appendrow: '+JSON.stringify(row));
-        var tr = $('<tr></tr>');
-        var rv = this.tv._getRow(n);
-        for (var i in this.columns) {
-            var col = this.columns[i];
-            console.log('for column '+col.name);
-            if (col.class === 1) {
-                tr.append('<td>'+col.run(n,this.tv,rv)+'</td>');
-            } else {
-                tr.append('<td>'+row[col.name]+'</td>');
-            }
-        }
-        this.tableBody.append(tr);
-    };
-
     this.selectTable = function() {
+        console.log('selectTable()');
         var _this = this;
         $.ajax({
             url: this.ajaxUrl, 
             data: {operation: 'SELECT TABLE'}, 
             dataType: 'json',
             success: function(response) {
+                console.log(response);
                 if (response.success) {
-                    _this.tv = TableValues(
+                    _this.tv = new TableValues(_this.tableName,
                         response.data.mainValues, 
                         response.data.sideValues
                     );
-                    for (var n in response.data.mainValues) {
-                        _this.appendRow(n,response.data.mainValues[n]);
-                    }
+                    console.log(_this.tv._id);
+                    _this.tv.each(function(n, rv) {
+                        _this.tableBody.append(_this.getRow(rv));
+                    });
                 } else {
                     alert(response.errormsg);
                 }
@@ -105,30 +197,22 @@ function Trek(userVars) {
         });
     };
      
-    this.insert = function() { 
+    this.initInsert = function() { 
         var _this = this;
-        $('.trek-form button[type="submit"]').click(function() {
-            console.log('clicked submit');
+        var formDataFields, formAutoFields;
+        this.saveThis = function() {
             var data = {};
-            for (var cn in _this.formDataFields) {
-                var df = _this.formDataFields[cn];
-                console.log('for column '+cn);
-                var t = df.val();
-                df.val('');
-                if (t !== '') {
-                    data[cn] = t;
-                }
-            }
-            console.log('ajax call to '+_this.ajaxUrl+' with data:');
-            console.log(data);
+            formDataFields.each(function() {
+                data[$(this).data('col')] = $(this).val();
+            });
             $.ajax({
                 url: _this.ajaxUrl,
                 data: {operation: 'INSERT', data: data},
                 dataType: 'json',
                 success: function(response) {
-                    console.log(response);
                     if(response.success) {
-                        _this.appendRow(response.data);
+                        _this.tv._insertRow(response.data);
+                        _this.tableBody.append(_this.getRow(_this.tv._getRow()));
                     } else {
                         alert(response.errormsg);
                     }
@@ -137,29 +221,110 @@ function Trek(userVars) {
                     console.log('Ajax error: '+xhr+'\n'+thrownError);
                 }
             });
-        });
-        _this.formDataFields.change(function() {
-            var rv = _this.tv._getRow();
-            _this.formAutoFields.each(function() {
-                var col = _this.getColumnByName($(this).data('col'));
-                $(this).val(col['run'](_this.tv._nextRow,_this.tv,rv));
+            $('.trek-form-insert input').val('');
+        };
+        this.updateInsert = function() {
+            var rv = {};
+            formDataFields.each(function() {
+                rv[$(this).data('col')] = $(this).val();
             });
-        });
+            rv = _this.tv._getRow(rv);
+            formAutoFields.each(function() {
+                var col = _this.getColumnByName($(this).data('col'));
+                $(this).val(col['run'](_this.tv,rv));
+            });
+        };
+        this.tableBody.prepend(this.getInsertForm());
+        var formDataFields = $('.trek-form-insert .trek-data');
+        var formAutoFields = $('.trek-form-insert .trek-auto');
     };
-    this.edit = function() {};
-    this.alter = function() {};
-    this.delete = function() {};
-    this.suggest = function() {};
-    this.filter = function() {};
-    this.initAll = function() {
-        $.each(trekTools.constructors, function(name, fn) {
-            fn();
-        });
+
+    this.initAlter = function() {
+        var _this = this, formDataFields, formAutoFields;
+        this.editThis = function() {
+            _this.editCancel();
+            var tr = ($(this).is('tr') ? $(this) : $(this).parents('tr'));
+            var id = tr.data('id');
+            tr.replaceWith(_this.getAlterForm(_this.tv._getRow(id)));
+            formDataFields = $('.trek-form-alter .trek-data');
+            formAutoFields = $('.trek-form-alter .trek-auto');
+        };
+        this.editDone = function() {
+            var data = {};
+            var tr = $(this).parents('tr');
+            formDataFields.each(function() {
+                data[$(this).data('col')] = $(this).val();
+            });
+            $.ajax({
+                url: _this.ajaxUrl,
+                data: {operation: 'ALTER', data: data},
+                dataType: 'json',
+                success: function(response) {
+                    if (response.success) {
+                        _this.tv._alterRow(response.data);
+                        tr.replaceWith(_this.getRow(_this.tv._getRow()));
+                    } else {
+                        alert(response.errormsg);
+                    }
+                },
+                error: function(xhr, ajaxOptions, thrownError) {
+                    console.log('Ajax error: '+xhr+'\n'+thrownError);
+                }
+            });
+            $('.trek-form-alter input').val('');
+        };
+
+        this.editCancel = function() {
+            var tr = $('.trek-form-alter');
+            if (tr.length !== 0) {
+                var id = tr.data('id');
+                tr.replaceWith(_this.getRow(_this.tv._getRow(id)));
+            }
+        };
+
+        this.updateAlter = function() {
+            var rv = {};
+            formDataFields.each(function() {
+                rv[$(this).data('col')] = $(this).val();
+            });
+            rv = _this.tv._getRow(rv);
+            formAutoFields.each(function() {
+                var col = _this.getColumnByName($(this).data('col'));
+                $(this).val(col['run'](_this.tv,rv));
+            });
+        };
     };
-    this.initMin = function() {
-        trekTools.constructors.selectTable();
-        trekTools.constructors.insert();
-        trekTools.constructors.alter();
-        trekTools.constructors.delete();
+
+    this.initDelete = function() {
+        _this = this;
+        this.deleteThis = function() {
+            console.log('deleteThis');
+            var id = $(this).parents('tr').data('id');
+            $.ajax({
+                url: _this.ajaxUrl,
+                data: {operation: 'DELETE', row: id},
+                dataType: 'json',
+                success: function(response) {
+                    if (response.success) {
+                        _this.tv._deleteRow(response.row);
+                    } else {
+                        alert(response.errormsg);
+                    }
+                },
+                error: function(xhr, ajaxOptions, thrownError) {
+                    console.log('Ajax error: '+xhr+'\n'+thrownError);
+                }
+            });
+            $('.trek-form-alter').remove();
+        };
     };
+    this.suggest = function() {
+    };
+    this.filter = function() {
+    };
+
+    this.selectTable();
+    this.initInsert();
+    this.initDelete();
+    this.initAlter();
 }
