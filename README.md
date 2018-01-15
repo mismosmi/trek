@@ -47,3 +47,6 @@ these values are constantly recalculated.
 - get rid of Bootstrap
 - next level abstraction: store all column data in another table and make it available to the user so tables can be added, removed, edited, reduce to 2 files for the table management: table.php and query.php
 - switch between tables without reloading page, get all table information via ajax, present tables in tabs
+
+## Goals for 3.0
+- user management
