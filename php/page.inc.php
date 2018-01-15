@@ -68,9 +68,9 @@ class Page {
     * @param string $configFile use special config.php, mainly for testing
     */
     function __construct(
-        string $title = '', 
-        string $favicon = '',
-        string $configFile = ''
+        $title = NULL, 
+        $favicon = NULL,
+        $configFile = NULL
     )
     {
         $this->_config = empty($configFile) 
@@ -111,7 +111,7 @@ class Page {
     *
     * @param string $fileName
     */
-    public function addJs(string $fileName) {
+    public function addJs($fileName) {
         $this->_includeJs[] = $this->_jsDir.$fileName;
     }
 
@@ -120,7 +120,7 @@ class Page {
     *
     * @param string $fileName
     */
-    public function addCss(string $fileName) {
+    public function addCss($fileName) {
         $this->_includeCss[] = $this->_cssDir.$fileName;
     }
 
@@ -139,7 +139,7 @@ class Page {
     *                               general desc. defined in config.php
     * @return string complete <head> tag including metainfo, description, stylesheets
     */
-    public function getHead(string $description = '') {
+    public function getHead($description = NULL) {
         $cssIncludeString = '';
         foreach ($this->_includeCss as $path){
             $cssIncludeString .= 
@@ -170,9 +170,9 @@ class Page {
     * @return string an <ul> with one <li><a></a></li> per navigation element
     */
     public function getMainNavigation(
-        string $ul = 'navbar-nav', 
-        string $li = 'nav-item', 
-        string $a = 'nav-link'
+        $ul = 'navbar-nav', 
+        $li = 'nav-item', 
+        $a = 'nav-link'
     ) 
     {
         $nav = "<ul class=\"$ul\">\n";
@@ -294,7 +294,7 @@ class Page {
      * @param string $name
      * @return array success-status and error message
      */
-    public function dbDropTable(string $name)
+    public function dbDropTable($name)
     {
         $connStatus = $this->dbConnect();
         if (!$connStatus['success']) return $connStatus;
@@ -315,7 +315,7 @@ class Page {
      * @param string $name
      * @return bool
      */
-    public function dbTableExists(string $name)
+    public function dbTableExists($name)
     {
         if (!$this->dbConnect()['success']) return False;
         $be = $this->_config['database']['backend'];
@@ -347,7 +347,7 @@ class Page {
      * @param array $data 
      * @return array success-status and error message
      */
-    public function dbInsert(string $table, array $data)
+    public function dbInsert($table, array $data)
     {
         $connStatus = $this->dbConnect();
         if (!$connStatus['success']) return $connStatus;
@@ -382,7 +382,7 @@ class Page {
      * @param array $data
      * @return array success-status and error message
      */
-    public function dbAlter(string $table, int $row, array $data)
+    public function dbAlter($table, $row, array $data)
     {
         $connStatus = $this->dbConnect();
         if (!$connStatus['success']) return $connStatus;
@@ -413,7 +413,7 @@ class Page {
      * @param int $row
      * @return array success-status and error message
      */
-    public function dbDelete(string $table, int $row)
+    public function dbDelete($table, $row)
     {
         $connStatus = $this->dbConnect();
         if (!$connStatus['success']) return $connStatus;
@@ -438,18 +438,18 @@ class Page {
      * @return array success-status and data or error message
      */
     public function dbSelect(
-        string $table, 
+        $table, 
         array $columns = ['*'], 
         array $where = [],
-        int $limit = 0,
-        string $order = "BY %ID% DESC"
+        $limit = 0,
+        $order = NULL
     )
     {
+        $order = $order ?: "BY {$table}_id ASC";
         $connStatus = $this->dbConnect();
         if (!$connStatus['success']) return $connStatus;
 
         try {
-            $order = str_replace('%ID%', $table.'_id', $order);
             $ws = "";
             if (!empty($where)) {
                 $ws = " WHERE ";
