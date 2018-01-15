@@ -268,17 +268,17 @@ class Page {
             $be = $this->_config['database']['backend'];
             $query = "CREATE TABLE $name (";
             if ($be == 'sqlite') {
-                $query .= "id INTEGER PRIMARY KEY, "
+                $query .= "{$name}_id INTEGER PRIMARY KEY, "
                     ."entrydate DATETIME DEFAULT CURRENT_TIMESTAMP";
             } elseif ($be == 'mysql') {
-                $query .= "id INT NOT NULL AUTO_INCREMENT, "
+                $query .= "{$name}_id INT NOT NULL AUTO_INCREMENT, "
                     ."entrydate TIMESTAMP";
             }
             foreach ($columns as $col) {
                 $query .= ", {$col['name']} {$col['type']} ";
                 if ($col['required']) $query .= "NOT NULL ";
             }
-            if ($be == 'mysql') $query .= ", PRIMARY KEY (id)";
+            if ($be == 'mysql') $query .= ", PRIMARY KEY ({$name}_id)";
             $query .= ")";
             $this->_db->exec($query);
             return ['success' => True];
@@ -394,8 +394,8 @@ class Page {
                 $set[] = "$name = :$name";
             }
             $stmt = $this->_db->prepare("UPDATE $table "
-                ."SET ".join(",",$set)." WHERE id=$row");
-            foreach ($data as $name => $var) {
+                ."SET ".join(",",$set)." WHERE {$table}_id=$row");
+            foreach ($data as $name => $val) {
                 $stmt->bindParam(":".$name, $val);
             }
             $stmt->execute();
@@ -419,7 +419,7 @@ class Page {
         if (!$connStatus['success']) return $connStatus;
 
         try {
-            $this->_db->exec("DELETE FROM $table WHERE id=$row");
+            $this->_db->exec("DELETE FROM $table WHERE {$table}_id=$row");
             return ['success' => True];
         } catch (PDOException $e) {
             return ['success' => False, 'errormsg' =>
@@ -433,29 +433,47 @@ class Page {
      * @param string $table
      * @param array (string) $columns    which columns to select
      * @param array $where               ['condition',...]
+     * @param int $limit
+     * @param string $order
      * @return array success-status and data or error message
      */
     public function dbSelect(
         string $table, 
         array $columns = ['*'], 
-        array $where = []
+        array $where = [],
+        int $limit = 0,
+        string $order = "BY %ID% DESC"
     )
     {
         $connStatus = $this->dbConnect();
         if (!$connStatus['success']) return $connStatus;
 
         try {
-            $ws = empty($where) ? "" : " WHERE ".join(',',$where);
+            $order = str_replace('%ID%', $table.'_id', $order);
+            $ws = "";
+            if (!empty($where)) {
+                $ws = " WHERE ";
+                foreach ($where as $key => $val) {
+                    $ws .= "$key = :$key";
+                }
+            }
+            //$ws = empty($where) ? "" : " WHERE ".join(',',$where);
+            $ls = empty($limit) ? "" : " LIMIT $limit";
             $stmt = $this->_db->prepare(
                 "SELECT ".join(",",$columns)." "
-                ."FROM $table$ws"
+                ."FROM $table$ws ORDER $order$ls"
             );
+            if (!empty($where)) {
+                foreach ($where as $key => $val) {
+                    $stmt->bindParam(":$key", $val);
+                }
+            }
             $stmt->execute();
             $stmt->setFetchMode(PDO::FETCH_ASSOC);
             return ['success' => True, 'data' => $stmt->fetchAll()];
         } catch (PDOException $e) {
             return ['success' => False, 'errormsg' =>
-                "Error fetching data from table $table: ".$e->getMessage()];
+                "dbSelect: Error fetching data from table $table: ".$e->getMessage()];
         }
     }
 

@@ -1,22 +1,25 @@
 function TableValues(tableName, mainValues, sideValues) {
-    console.log('TableValues('+tableName+')');
-    console.log(mainValues);
+    console.log('called TableValues');
     this._id = tableName+'_id';
     
-    this._nextRow = 1;
+    this.keys = [];
     for (var rn in mainValues) {
         for (var tn in sideValues) {
             mainValues[rn][tn] = sideValues[tn][mainValues[rn][tn+'_id']];
         }
         this[mainValues[rn][this._id]] = mainValues[rn];
-        this._nextRow = mainValues[rn][this._id]+1;
+        this.keys.push(parseInt(mainValues[rn][this._id]));
     }
     for (var tn in sideValues) {
         this[tn] = sideValues[tn];
     }
 
     this._tableNames = Object.keys(sideValues);
-    this._currentRow = this._nextRow;
+    this._currentRow = Math.max.apply(Math,this.keys);
+    console.log(this.keys);
+    delete this.keys;
+    console.log('currentRow after loop: '+this._currentRow);
+    this._nextRow = this._currentRow + 1;
 
     this._getRow = function(row) {
         if (typeof row === 'undefined') {
@@ -52,12 +55,15 @@ function TableValues(tableName, mainValues, sideValues) {
         this._currentRow = row[this._id];
     };
     this.each = function(doThis) {
-        for (var _index = 0; _index < this._currentRow; _index++) {
+        for (var _index = this._currentRow; _index > 0; _index--) {
             if (_index in this) {
                 doThis(_index, this[_index]);
             }
         }
     };
+
+    console.log('tv:');
+    console.log(this);
 }
 
 function Trek(userVars) {
@@ -104,6 +110,7 @@ function Trek(userVars) {
 
     this.getAlterForm = function(rv) {
         var tr = $('<tr class="trek-form-alter"></tr>');
+        tr.data('id',rv[this.tableName+'_id']);
         for (var i in this.columns) {
             var col = this.columns[i];
             if (col.class === 0) {
@@ -183,7 +190,6 @@ function Trek(userVars) {
                         response.data.mainValues, 
                         response.data.sideValues
                     );
-                    console.log(_this.tv._id);
                     _this.tv.each(function(n, rv) {
                         _this.tableBody.append(_this.getRow(rv));
                     });
@@ -199,7 +205,7 @@ function Trek(userVars) {
      
     this.initInsert = function() { 
         var _this = this;
-        var formDataFields, formAutoFields;
+        var formDataFields, formAutoFields, insertForm;
         this.saveThis = function() {
             var data = {};
             formDataFields.each(function() {
@@ -210,9 +216,11 @@ function Trek(userVars) {
                 data: {operation: 'INSERT', data: data},
                 dataType: 'json',
                 success: function(response) {
+                    console.log('insert response:');
+                    console.log(response);
                     if(response.success) {
-                        _this.tv._insertRow(response.data);
-                        _this.tableBody.append(_this.getRow(_this.tv._getRow()));
+                        _this.tv._insertRow(response.data[0]);
+                        insertForm.after(_this.getRow(_this.tv._getRow()));
                     } else {
                         alert(response.errormsg);
                     }
@@ -234,7 +242,8 @@ function Trek(userVars) {
                 $(this).val(col['run'](_this.tv,rv));
             });
         };
-        this.tableBody.prepend(this.getInsertForm());
+        insertForm = this.getInsertForm();
+        this.tableBody.prepend(insertForm);
         var formDataFields = $('.trek-form-insert .trek-data');
         var formAutoFields = $('.trek-form-insert .trek-auto');
     };
@@ -252,16 +261,17 @@ function Trek(userVars) {
         this.editDone = function() {
             var data = {};
             var tr = $(this).parents('tr');
+            var row = tr.data('id');
             formDataFields.each(function() {
                 data[$(this).data('col')] = $(this).val();
             });
             $.ajax({
                 url: _this.ajaxUrl,
-                data: {operation: 'ALTER', data: data},
+                data: {operation: 'ALTER', row: row, data: data},
                 dataType: 'json',
                 success: function(response) {
                     if (response.success) {
-                        _this.tv._alterRow(response.data);
+                        _this.tv._alterRow(response.data[0]);
                         tr.replaceWith(_this.getRow(_this.tv._getRow()));
                     } else {
                         alert(response.errormsg);
@@ -298,8 +308,9 @@ function Trek(userVars) {
     this.initDelete = function() {
         _this = this;
         this.deleteThis = function() {
-            console.log('deleteThis');
+            console.log(this);
             var id = $(this).parents('tr').data('id');
+            console.log('deleteThis: '+id);
             $.ajax({
                 url: _this.ajaxUrl,
                 data: {operation: 'DELETE', row: id},
@@ -307,6 +318,7 @@ function Trek(userVars) {
                 success: function(response) {
                     if (response.success) {
                         _this.tv._deleteRow(response.row);
+                        console.log('delete row '+response.row);
                     } else {
                         alert(response.errormsg);
                     }

@@ -10,19 +10,13 @@
                 <tr>
                     <th data-col="jstest-id">JS-Test-ID</th>
                     <th data-col="datacol">Data Column</th>
+                    <th data-col="datacol2">Data Column 2</th>
                     <th data-col="autocol">Auto Column</th>
                     <th data-col="timestamp">Edited</th>
                     <th data-col="controls"></th>
                 </tr>
             </thead>
             <tbody>
-                <tr class="trek-form">
-                    <td></td>
-                    <td><input type="text" class="form-control trek-data" id="datacol" placeholder="some data" required></td>
-                    <td><input type="text" class="form-control trek-auto readonly" id="autocol"></td>
-                    <td></td>
-                    <td><button type="submit" class="btn btn-default">Save</button></td>
-                </tr>
             </tbody>
         </table>
         </div>
@@ -38,17 +32,15 @@
                 tableName: 'jstest',
                 columns: [
                     {class: 2, name: 'jstest-id'},
-                    {class: 0, name: 'datacol'},
-                    {class: 1, name: 'autocol', run: function(n,tv) {
-                        return tv.datacol;
+                    {class: 0, name: 'datacol', placeholder: "some data", required: true},
+                    {class: 0, name: 'datacol2', placeholder: "some other data", required:false},
+                    {class: 1, name: 'autocol', run: function(tv,rv) {
+                        return rv.datacol;
                     }},
-                    {class: 2, name: 'timestamp'}
+                    {class: 2, name: 'timestamp'},
                 ],
                 ajaxUrl: 'tableTestResponse.php'
             });
-
-            trekData.selectTable();
-            trekData.insert();
         });
     </script>
     </body>

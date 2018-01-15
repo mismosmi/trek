@@ -12,21 +12,6 @@ use PHPUnit\Framework\TestCase;
 class TableTest extends TestCase
 {
 
-    public function testAddAndGetScripts()
-    {
-        $table = new Table("testtable", "testpage", '', CONFIG_TEST);
-
-        $table->addJs('test3.js');
-
-        $correct = 
-             "<script src=\"".HTML_ROOT."js/test1.js\"></script>\n"
-            ."<script src=\"".HTML_ROOT."js/test2.js\"></script>\n"
-            ."<script src=\"".HTML_ROOT."js/table.js\"></script>\n"
-            ."<script src=\"".HTML_ROOT."js/test3.js\"></script>\n";
-
-        $this->assertEquals($correct, $table->getScripts());
-    }
-
     public function testNavigationMainExample()
     {
         $table = new Table("testtable", "testpage", '', CONFIG_TEST);
@@ -99,16 +84,6 @@ class TableTest extends TestCase
             ."</tr>\n"
             ."</thead>\n"
             ."<tbody>\n"
-            ."<tr class=\"trek-form\">\n"
-            ."<td></td>\n"
-            ."<td><input type=\"text\" class=\"form-control\" "
-            ."id=\"testcol1\" required></td>\n"
-            ."<td><input type=\"text\" class=\"form-control readonly\" "
-            ."id=\"testcol2\"></td>\n"
-            ."<td></td>\n"
-            ."<td><button type=\"submit\" class=\"btn btn-default\">Save"
-            ."</button></td>\n"
-            ."</tr>\n"
             ."</tbody>\n"
             ."</table>\n"
             ."</div>\n";
@@ -116,24 +91,10 @@ class TableTest extends TestCase
         $this->assertEquals($correct, $table->getTable());
     }
 
-    public function testAddColAndGetFormElements()
-    {
-        $table = new Table('testtable', 'testpage', '', CONFIG_TEST);
-        $table->addDataCol('testcol1','VARCHAR','Testcol1','',True);
-        $table->addAutoCol('testcol2','Testcol2','testcol1');
-        $correct = [
-            'testcol1' => '<input type="text" class="form-control" id="testcol1" required>',
-            'testcol2' => '<input type="text" class="form-control readonly" id="testcol2">',
-            'controls' => '<button type="submit" class="btn btn-default">Save</button>'
-        ];
-
-        $this->assertEquals($correct, $table->getFormElements());
-    }
-
     public function testCreateAndDropTable()
     {
         $table = new Table('testtable', 'title', '', CONFIG_TEST);
-        $table->addDataCol('testcol','VARCHAR','Testcol1','',True);
+        $table->addDataCol('testcol','VARCHAR(30)','Testcol1','',True);
         $table->addAutoCol('testcol2','Testcol2','testcol1');
 
         $this->assertEquals(SUCCESS, $table->dbCreateThisTable());
@@ -143,8 +104,9 @@ class TableTest extends TestCase
     public function testDbSelectTableEmpty()
     {
         $table = new Table('testtable', 'testpage', '', CONFIG_TEST);
-        $table->addDataCol('testcol1','VARCHAR','Testcol1','',True);
+        $table->addDataCol('testcol1','VARCHAR(30)','Testcol1','',True);
         $table->addAutoCol('testcol2','Testcol2','tv.testcol1');
+        $table->dbCreateThisTable();
         $correct = ['success' => True, 'data' =>
             ['mainValues' => [], 'sideValues' => []]];
 
@@ -154,31 +116,20 @@ class TableTest extends TestCase
     public function testDbInsertAndDelete()
     {
         $table = new Table('testtable', 'testpage', '', CONFIG_TEST);
-        $table->addDataCol('testcol1','VARCHAR','Testcol1','',True);
+        $table->addDataCol('testcol1','VARCHAR(30)','Testcol1','',True);
         $table->addAutoCol('testcol2','Testcol2','testcol1');
         $data = ['testcol1' => 'exampledata3'];
+        $result = ['success' => True, 'data' => ['testcol1' => 'exampledata3']];
 
         $table->dbCreateThisTable();
         $initstate = $table->dbSelectThisTable();
-        $this->assertEquals(SUCCESS, $table->dbInsertIntoThis($data));
+        $result = $table->dbInsertIntoThis($data);
+        $this->assertTrue($result['success']);
+        $this->assertEquals('exampledata3',$result['data'][0]['testcol1']);
+        $this->assertEquals('1',$result['data'][0]['testtable_id']);
         $this->assertNotEquals($initstate, $table->dbSelectThisTable());
-        $this->assertEquals(SUCCESS, $table->dbDeleteFromThis(1));
+        $this->assertEquals(['success' => True, 'row' => 1], $table->dbDeleteFromThis(1));
         $this->assertEquals($initstate, $table->dbSelectThisTable());
-    }
-
-    public function testDbSelect()
-    {
-        $t = new Table('testtable', 'testpage', '', CONFIG_TEST);
-        $t->addDataCol('testcol1','VARCHAR','Testcol1','',True);
-        $t->dbCreateThisTable();
-        $t->dbInsertIntoThis(['testcol1' => 'exampledata']);
-        $t->dbInsertIntoThis(['testcol1' => 'exampledata2']);
-        $t->dbInsertIntoThis(['testcol1' => 'e3']);
-
-        $result = [['id'=>'1', 'testcol1'=>'exampledata'],
-            ['id'=>'2', 'testcol1'=>'exampledata2'],
-            ['id'=>'3', 'testcol1'=>'e3']];
-        $this->assertEquals($result, $t->dbSelect('testtable', ['id','testcol1'])['data']);
     }
 
     public function testDbAlter()
@@ -192,10 +143,12 @@ class TableTest extends TestCase
         $table->dbInsertIntoThis(['testcol1'=>'exampledata2']);
         
         $data = ['testcol1' => 'modified data'];
-        $this->assertEquals(['success' => True], $table->dbAlterInThis(2,$data));
-        $correct = [['id' => 1, 'testcol1' => 'exampledata1'],
-                    ['id' => 2, 'testcol1' => 'modified data']];
-        $columns = ['id', 'testcol1'];
+        $result = $table->dbAlterInThis('2',$data)['data'][0];
+        $this->assertEquals(2, $result['testtable_id']);
+        $this->assertEquals('modified data', $result['testcol1']);
+        $correct = [['testtable_id' => 2, 'testcol1' => 'modified data'],
+                    ['testtable_id' => 1, 'testcol1' => 'exampledata1']];
+        $columns = ['testtable_id', 'testcol1'];
         $this->assertEquals($correct, $table->dbSelect('testtable', $columns)['data']);
     }
 
@@ -213,20 +166,17 @@ class TableTest extends TestCase
         $data_raw_delete = ["operation" => "DELETE", "row" => 1];
 
         $table->dbCreateThisTable();
-        $this->assertEquals('{"success":true}',
-            $table->processRequest($data_raw_insert));
+        $table->processRequest($data_raw_insert);
 
         $this->assertEquals([['testcol1' => 'exampledata']],
             $table->dbSelect('testtable', ['testcol1'])['data']);
 
-        $this->assertEquals('{"success":true}',
-            $table->processRequest($data_raw_alter));
+        $table->processRequest($data_raw_alter);
 
         $this->assertEquals([['testcol1' => 'changed example data']],
             $table->dbSelect('testtable', ['testcol1'])['data']);
 
-        $this->assertEquals('{"success":true}',
-            $table->processRequest($data_raw_delete));
+        $table->processRequest($data_raw_delete);
 
         $correct = '{"success":true,'
             .'"data":{"mainValues":[],"sideValues":[]}}';

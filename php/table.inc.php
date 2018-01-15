@@ -157,17 +157,12 @@ class Table extends Page
      */
     public function getTable()
     {
-        $formElements = $this->getFormElements();
         $headerRow = "<tr>\n<th data-col=\"$this->name-id\">$this->idname</th>\n";
-        $formRow = "<tr class=\"trek-form\">\n<td></td>\n";
         foreach ($this->col as $col) {
             $headerRow .= "<th data-col=\"{$col['name']}\">{$col['title']}</th>\n";
-            $formRow .= "<td>{$formElements[$col['name']]}</td>\n";
         }
         $headerRow .= "<th data-col=\"timestamp\">Edited</th>\n"
             ."<th data-col=\"controls\"></th>\n</tr>\n";
-        $formRow .= "<td></td>\n"
-            ."<td>{$formElements['controls']}</td>\n</tr>\n"; 
 
         return 
              "<div class=\"trek-table\" id=\"table-$this->name\">\n"
@@ -176,40 +171,49 @@ class Table extends Page
             .$headerRow
             ."</thead>\n"
             ."<tbody>\n"
-            .$formRow
             ."</tbody>\n"
             ."</table>\n"
             ."</div>\n";
     }
 
     /**
-     * generate form to append new entries to the table or modify existing ones
+     * Generate script tags to insert at end of <body> including variables
+     * passed from php to js
      *
-     * @return array elements of the form
+     * @return external and internal scripts
      */
-    public function getFormElements()
-    {
-        $elements = [];
+    public function getScripts() {
+        $scripts = parent::getScripts();
+
+        $scripts .= 
+            "<script>\n"
+            ."$(document).ready(function(){\n"
+            ."trekData = new Trek({\n"
+            ."tableName: \"$this->name\",\n"
+            ."ajaxUrl: window.location.href,\n"
+            ."columns: [{class: 2, name: \"{$this->name}_id\"},\n";
         foreach ($this->col as $col) {
-            if ($col['class'] === Column::DataCol) {
-                $placeholder = empty($col['placeholder']) ? ""
-                    : " placeholder=\"{$col['placeholder']}\"";
-                $required = $col['required'] ? " required" : "";
-                $elements[$col['name']] =
-                    "<input type=\"text\" class=\"form-control\" "
-                    ."id=\"{$col['name']}\""
-                    ."$placeholder$required>";
-            } elseif ($col['class'] === Column::AutoCol) {
-                $elements[$col['name']] =
-                    "<input type=\"text\" "
-                    ."class=\"form-control readonly\" "
-                    ."id=\"{$col['name']}\">";
+            $scripts .=
+                "{class: {$col['class']},\n"
+                ."name: \"{$col['name']}\",\n";
+            if ($col['class'] == Column::DataCol) {
+                $scripts .=
+                    "placeholder: \"{$col['placeholder']}\",\n"
+                    ."required: ".(($col['required']) ? "true" : "false")."},\n";
+            } elseif ($col['class'] == Column::AutoCol) {
+                $scripts .= 
+                    "run: function(tv,rv) {\n"
+                    .(strpos($col['js'],'return') === False 
+                    ? "return ".$col['js']
+                    : $col['js'])
+                    ."\n}\n},\n";
             }
         }
-        $elements['controls'] = "<button type=\"submit\" "
-            ."class=\"btn btn-default\">Save</button>";
-
-        return $elements;
+        $scripts .=
+            "]\n});\n"
+            ."});\n"
+            ."</script>\n";
+        return $scripts;
     }
 
     /**
@@ -239,6 +243,7 @@ class Table extends Page
         foreach ($this->col as $col) {
             if ($col['class'] === Column::DataCol) $columns[] = $col;
         }
+        //return ['success' => False, 'errormsg' => json_encode($columns)];
         return $this->dbCreateTable($this->name, $columns);
     }
 
@@ -264,7 +269,7 @@ class Table extends Page
     {
         $result = $this->dbSelect($this->name);
         if (!$result['success']) {
-            $createResult = $this->dbCreateTable($this->name);
+            $createResult = $this->dbCreateThisTable($this->name);
             if ($createResult['success']) 
                 return ['success' => True, 'alert' => "Successfully created Table",
                 'data' => ['mainValues' => [], 'sideValues' => []],
@@ -289,11 +294,15 @@ class Table extends Page
      * process requests for inserting new row to table
      *
      * @param array $data       POST data from Ajax as array
-     * @return array success-status and error message
+     * @return array success-status and data or error message
      */
     public function dbInsertIntoThis(array $data)
     {
-        return $this->dbInsert($this->name, $this->validateTableKeys($data));
+        $insertResult = $this->dbInsert($this->name, $this->validateTableKeys($data));
+        if ($insertResult['success']) return $this->dbSelect(
+            $this->name, ['*'], [], 1
+        );
+        else return $insertResult;
     }
 
     /**
@@ -301,11 +310,15 @@ class Table extends Page
      *
      * @param int $row
      * @param array $data
-     * @return array success-status and error message
+     * @return array success-status and data or error message
      */
     public function dbAlterInThis(int $row, array $data)
     {
-        return $this->dbAlter($this->name, $row, $this->validateTableKeys($data));
+        $alterResult = $this->dbAlter($this->name, $row, $this->validateTableKeys($data));
+        if ($alterResult['success']) return $this->dbSelect(
+            $this->name, ['*'], [$this->name.'_id' => $row]
+        );
+        else return $alterResult;
     }
 
     /**
@@ -316,16 +329,17 @@ class Table extends Page
      */
     public function dbDeleteFromThis(int $row)
     {
-        return $this->dbDelete($this->name, $row);
+        $result = $this->dbDelete($this->name, $row);
+        $result['row'] = $row;
+        return $result;
     }
 
     /**
      * process a database request
-     * parse incoming request from JSON to array and pass it on to 
-     * database access methods
+     * pass incoming request on to database access methods
      *
      * @param array $data      GET data from Ajax as array ($_GET)
-     * @return string answer from database encoded in JSON
+     * @return string answer from database
      */
     public function processRequest(array $data)
     {
@@ -338,10 +352,11 @@ class Table extends Page
             $ret = $this->dbInsertIntoThis($data['data']); 
             break;
         case 'DELETE':
-            $ret = $this->dbDeleteFromThis($data['row']);
+            $ret = $this->dbDeleteFromThis(intval($data['row']));
             break;
         case 'ALTER':
-            $ret = $this->dbAlterInThis($data['row'], $data['data']);
+            $ret = $this->dbAlterInThis(intval($data['row']), $data['data']);
+            //$ret = ['success' => False, 'errormsg' => json_encode($data)];
             break;
         }
         return json_encode($ret);

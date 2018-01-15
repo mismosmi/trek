@@ -115,8 +115,24 @@ class PageTest extends TestCase
 
         $data = ['testcol' => 'testvalue'];
         $this->assertEquals(SUCCESS, $p->dbInsert('testtable', $data));
-        $result = ['success' => True, 'data' => [['id' => 1, 'testcol' => 'testvalue']]];
-        $this->assertEquals($result, $p->dbSelect('testtable', ['id', 'testcol']));
+        $result = ['success' => True, 'data' => [['testtable_id' => 1, 'testcol' => 'testvalue']]];
+        $this->assertEquals($result, $p->dbSelect('testtable', ['testtable_id', 'testcol']));
+    }
+
+    public function testDbSelectExtended()
+    {
+        $p = new Page('','',CONFIG_TEST);
+        $columns = [['name' => "col", 'type' => "VARCHAR", 'required' => True]];
+        $p->dbCreateTable('test', $columns);
+        $p->dbInsert('test', ['col'=>'v1']);
+        $p->dbInsert('test', ['col'=>'v2']);
+        $p->dbInsert('test', ['col'=>'v3']);
+
+        $c = ['test_id','col'];
+        $this->assertEquals([['test_id'=>3,'col'=>'v3']], $p->dbSelect('test',$c,[],1)['data']);
+        $this->assertEquals([['test_id'=>2,'col'=>'v2']], $p->dbSelect('test',$c,
+            ['test_id' => 2])['data']);
+        $this->assertEquals([['test_id'=>1,'col'=>'v1'],['test_id'=>2,'col'=>'v2'],['test_id'=>3,'col'=>'v3']], $p->dbSelect('test',$c,[],0,"BY test_id ASC")['data']);
     }
 
     public function testDbAlterAndDelete()

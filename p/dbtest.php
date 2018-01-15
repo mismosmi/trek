@@ -7,7 +7,7 @@ $t = new Table('testdb');
 
 $t->setIdCol('Test-ID');
 $t->addDataCol('datacol1', 'VARCHAR(30)', 'Data Column 1', 'some data', True);
-$t->addAutoCol('autocol1', 'Auto Column 1', 'tv.datacol1');
+$t->addAutoCol('autocol1', 'Auto Column 1', 'rv.datacol1');
 
 if ($_GET) die($t->processRequest($_GET));
 
@@ -33,10 +33,6 @@ if ($_GET) die($t->processRequest($_GET));
     </div>
 </main>
 <?php echo $t->getScripts(); ?>
-<script>
-$(document).ready(function(){
-    trekData.initAll();
-}
 </script>
 </body>
 </html>
