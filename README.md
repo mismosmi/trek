@@ -42,7 +42,7 @@ these values are constantly recalculated.
 - Database access should be working and very stable
 - easy filters should be available for all columns
 - automatic suggestions while typing should speed up entering data and filtering
-- one php file per table, define table in php using Table class, output json-responses when queries with get-parameters or html when queried without
+- one php file per table, define table in php using Table class, output json-responses when queries with ~~get~~post-parameters or html when queried without
 
 ### Goals for 2.0
 - get rid of Bootstrap
