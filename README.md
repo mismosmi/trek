@@ -53,4 +53,3 @@ these values are constantly recalculated.
 - user management
 - Nextcloud integration
 - Redaxo integration
-- Frontend in WebAssembly
