@@ -9,9 +9,9 @@ A clean and minimalistic php-backend consisting of:
 + SqlDb: manages database access
 + Api: handles ajax calls
 + Page: renders page head, navigation and other common elements
-+ Database: contains models and views
-+ TableModel: contains table information
-+ TableView: renders tables, contains code for calculated fields
++ Database: contains tables and views
++ Table: contains table information (Columns)
++ View: a view into one or more tables without its own sql table
 
 ## Frontend
 A very minimalistic frontend based on [bulma.io](bulma.io) for style and javascript/jquery for:
@@ -36,5 +36,8 @@ a foreign id as `$tablename->columnname`
 - automatic suggestions while typing should speed up entering data and filtering
 
 ## Long term goals
+- move to nodejs-backend, server-side rendering and caching for calculated values
 - user management
 - encryption using [cryptico](https://wwwtyro.github.io/cryptico/)?
+
+
