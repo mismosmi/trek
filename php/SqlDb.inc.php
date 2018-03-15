@@ -9,13 +9,13 @@ class SqlDb {
      *
      * @var array(string)
      */
-    private $_info = [];
+    private $info = [];
     /**
      * Open database connection
      *
      * @var PDO
      */
-    protected $_db = NULL;
+    protected $db = NULL;
 
     /**
      * Constructor
@@ -24,8 +24,9 @@ class SqlDb {
      */
     function __construct(array $dbinfo)
     {
-        $this->_info = $dbinfo;
+        $this->info = $dbinfo;
     }
+    K
 
     /**
      * Desctructor
@@ -33,7 +34,7 @@ class SqlDb {
      */
     public function __destruct()
     {
-        $this->_db = NULL;
+        $this->db = NULL;
     }
 
     /**
@@ -43,17 +44,17 @@ class SqlDb {
      */
     public function dbConnect()
     {
-        if ($this->_db != NULL) return ['success' => True];
+        if ($this->db != NULL) return ['success' => True];
 
         try {
-            if ($this->_info['backend'] == 'sqlite') {
-                $conn = new PDO("sqlite:{$this->_info['path']}");
-            } elseif ($this->_info['backend'] == 'mysql') {
-                $conn = new PDO("mysql:host={$this->_info['host']};dbname={$this->_info['dbname']}",
-                    $this->_info['username'], $this->_info['password']);
+            if ($this->info['backend'] == 'sqlite') {
+                $conn = new PDO("sqlite:{$this->info['path']}");
+            } elseif ($this->info['backend'] == 'mysql') {
+                $conn = new PDO("mysql:host={$this->info['host']};dbname={$this->info['dbname']}",
+                    $this->info['username'], $this->info['password']);
             }
             $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-            $this->_db = $conn;
+            $this->db = $conn;
             return ['success' => True];
         } catch(PDOException $e) {
             return ['success' => False, 'errormsg' =>
@@ -80,21 +81,23 @@ class SqlDb {
         if (!$connStatus['success']) return $connStatus;
 
         try {
-            $be = $this->_info['backend'];
+            $be = $this->info['backend'];
             $query = "CREATE TABLE $name (";
             $fk = "";
             if ($be == 'sqlite') {
                 $query .= "{$name}_id INTEGER PRIMARY KEY, "
-                    ."timestamp DATETIME DEFAULT CURRENT_TIMESTAMP";
+                    ."timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,"
+                    ."deleted INTEGER DEFAULT 0";
             } elseif ($be == 'mysql') {
                 $query .= "{$name}_id INT NOT NULL AUTO_INCREMENT, "
-                    ."timestamp TIMESTAMP";
+                    ."timestamp TIMESTAMP,"
+                    ."deleted BOOLEAN DEFAULT 0";
             }
             foreach ($columns as $col) {
                 $colType = "";
                 $colName = "";
                 if ($col['type'] == "FOREIGN KEY") {
-                    $colType = $be == 'sqlite' ? "INTEGER" : "INT";
+                    $colType = "INTEGER";
                     $colName = $col['name'];
                     $foreignTable = explode("_", $col['name'], 2)[0];
                     $fk .= ", FOREIGN KEY ($colName) REFERENCES $foreignTable($colName)";
@@ -109,7 +112,7 @@ class SqlDb {
             $query .= $fk;
 
             $query .= ")";
-            $this->_db->exec($query);
+            $this->db->exec($query);
             return ['success' => True];
         } catch (PDOException $e) {
             return ['success' => False, 'errormsg' => 
@@ -130,7 +133,7 @@ class SqlDb {
 
         try {
             $query = "DROP TABLE $name";
-            $this->_db->exec($query);
+            $this->db->exec($query);
             return ['success' => True];
         } catch (PDOException $e) {
             return ['success' => False, 'errormsg' =>
@@ -147,12 +150,12 @@ class SqlDb {
     public function dbTableExists($name)
     {
         if (!$this->dbConnect()['success']) return False;
-        $be = $this->_info['backend'];
+        $be = $this->info['backend'];
 
         if ($be == 'mysql') {
             try {
-                $stmt = $this->_db->prepare("SHOW TABLES WHERE "
-                    ."Tables_in_{$this->_info['dbname']} LIKE :name");
+                $stmt = $this->db->prepare("SHOW TABLES WHERE "
+                    ."Tables_in_{$this->info['dbname']} LIKE :name");
                 $stmt->bindParam(":name", $name);
                 $stmt->execute();
                 return ($stmt->rowCount() == 1);
@@ -161,7 +164,7 @@ class SqlDb {
             }
         } elseif ($be = 'sqlite') {
             try {
-                $this->_db->exec("SELECT 1 FROM $name LIMIT 1");
+                $this->db->exec("SELECT 1 FROM $name LIMIT 1");
                 return True;
             } catch (PDOException $e) {
                 return False;
@@ -188,7 +191,7 @@ class SqlDb {
                 $collist[] = $name;
                 $paramlist[] = ":".$name;
             }
-            $stmt = $this->_db->prepare("INSERT INTO $table "
+            $stmt = $this->db->prepare("INSERT INTO $table "
                 ."(".join(",",$collist).") "
                 ."VALUES (".join(",",$paramlist).")");
             foreach ($data as $name => $val) {
@@ -222,7 +225,7 @@ class SqlDb {
             foreach ($data as $name => $val) {
                 $set[] = "$name = :$name";
             }
-            $stmt = $this->_db->prepare("UPDATE $table "
+            $stmt = $this->db->prepare("UPDATE $table "
                 ."SET ".join(",",$set)." WHERE {$table}_id=$row");
             foreach ($data as $name => $val) {
                 $stmt->bindValue(":".$name, $val);
@@ -248,7 +251,7 @@ class SqlDb {
         if (!$connStatus['success']) return $connStatus;
 
         try {
-            $this->_db->exec("DELETE FROM $table WHERE {$table}_id=$row");
+            $this->db->exec("DELETE FROM $table WHERE {$table}_id=$row");
             return ['success' => True];
         } catch (PDOException $e) {
             return ['success' => False, 'errormsg' =>
@@ -287,7 +290,7 @@ class SqlDb {
                 }
             }
             $ls = empty($limit) ? "" : " LIMIT $limit";
-            $stmt = $this->_db->prepare(
+            $stmt = $this->db->prepare(
                 "SELECT ".join(",",$columns)." "
                 ."FROM $table$ws ORDER $order$ls"
             );
@@ -361,7 +364,7 @@ class SqlDb {
             $stmt_text = "SELECT ".join(",",$columnNames)." "
                 ."FROM $table$js$ws ORDER $order$ls";
             echo $stmt_text;
-            $stmt = $this->_db->prepare(
+            $stmt = $this->db->prepare(
                 "SELECT ".join(",",$columnNames)." "
                 ."FROM $table$js$ws ORDER $order$ls"
             );
@@ -391,7 +394,7 @@ class SqlDb {
         if (!$connStatus['success']) return $connStatus;
 
         try {
-            $stmt = $this->_db->query($query);
+            $stmt = $this->db->query($query);
             $stmt->SetFetchMode(PDO::FETCH_ASSOC);
             return ['success' => True, 'data' => $stmt->fetchAll()];
         } catch (PDOException $e) {
