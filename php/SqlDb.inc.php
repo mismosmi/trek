@@ -26,7 +26,6 @@ class SqlDb {
     {
         $this->info = $dbinfo;
     }
-    K
 
     /**
      * Desctructor
@@ -66,16 +65,11 @@ class SqlDb {
     /**
      * query sql to create a table
      *
-     * @param string $name    
-     * @param array $columns    columns to be created, minimum format column:
-     *                          ['name' => column name,
-     *                          'type' => sql field type or "FOREIGN KEY",
-     *                          'required' => True if field should be NOT NULL,
-     *                          per default only id and timestamp will be
-     *                          created.
+     * @param string $name       table name
+     * @param array $columns    table columns
      * @return array success-status and error message
      */
-    public function dbCreateTable($name, $columns = [])
+    public function dbCreateTable($name, array $columns = [])
     {
         $connStatus = $this->dbConnect();
         if (!$connStatus['success']) return $connStatus;
@@ -85,11 +79,11 @@ class SqlDb {
             $query = "CREATE TABLE $name (";
             $fk = "";
             if ($be == 'sqlite') {
-                $query .= "{$name}_id INTEGER PRIMARY KEY, "
+                $query .= "id INTEGER PRIMARY KEY, "
                     ."timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,"
                     ."deleted INTEGER DEFAULT 0";
             } elseif ($be == 'mysql') {
-                $query .= "{$name}_id INT NOT NULL AUTO_INCREMENT, "
+                $query .= "id INT NOT NULL AUTO_INCREMENT, "
                     ."timestamp TIMESTAMP,"
                     ."deleted BOOLEAN DEFAULT 0";
             }
@@ -98,9 +92,8 @@ class SqlDb {
                 $colName = "";
                 if ($col['type'] == "FOREIGN KEY") {
                     $colType = "INTEGER";
-                    $colName = $col['name'];
-                    $foreignTable = explode("_", $col['name'], 2)[0];
-                    $fk .= ", FOREIGN KEY ($colName) REFERENCES $foreignTable($colName)";
+                    $colName = "{$col['table']}_id";
+                    $fk .= ", FOREIGN KEY ($colName) REFERENCES {$col['table']}($colName)";
                 } else {
                     $colType = $col['type'];
                     $colName = $col['name'];
@@ -113,7 +106,7 @@ class SqlDb {
 
             $query .= ")";
             $this->db->exec($query);
-            return ['success' => True];
+            return ['success' => True, 'info' => "Successfully created table \"$name\"."];
         } catch (PDOException $e) {
             return ['success' => False, 'errormsg' => 
                 "failed creating table $name: ".$e->getMessage()];
@@ -226,7 +219,7 @@ class SqlDb {
                 $set[] = "$name = :$name";
             }
             $stmt = $this->db->prepare("UPDATE $table "
-                ."SET ".join(",",$set)." WHERE {$table}_id=$row");
+                ."SET ".join(",",$set)." WHERE id=$row");
             foreach ($data as $name => $val) {
                 $stmt->bindValue(":".$name, $val);
             }
@@ -251,7 +244,7 @@ class SqlDb {
         if (!$connStatus['success']) return $connStatus;
 
         try {
-            $this->db->exec("DELETE FROM $table WHERE {$table}_id=$row");
+            $this->db->exec("DELETE FROM $table WHERE id=$row");
             return ['success' => True];
         } catch (PDOException $e) {
             return ['success' => False, 'errormsg' =>
@@ -264,7 +257,7 @@ class SqlDb {
      *
      * @param string $table
      * @param array (string) $columns       which columns to select
-     * @param array $where                  ['condition_key'=>'condition_value',...]
+     * @param array $where
      * @param int $limit
      * @param string $order
      * @return array success-status and data or error message
@@ -277,7 +270,7 @@ class SqlDb {
         $order = NULL
     )
     {
-        $order = $order ?: "BY {$table}_id ASC";
+        $order = $order ?: "BY id ASC";
         $connStatus = $this->dbConnect();
         if (!$connStatus['success']) return $connStatus;
 
@@ -285,17 +278,20 @@ class SqlDb {
             $ws = "";
             if (!empty($where)) {
                 $ws = " WHERE ";
-                foreach ($where as $key => $val) {
-                    $ws .= "$key = :$key";
+                foreach ($where as $w) {
+                    [$key, $op, $val] = explode(' ', $w);
+                    $ws .= "$key $op :$key";
                 }
             }
             $ls = empty($limit) ? "" : " LIMIT $limit";
+            
             $stmt = $this->db->prepare(
                 "SELECT ".join(",",$columns)." "
                 ."FROM $table$ws ORDER $order$ls"
             );
             if (!empty($where)) {
-                foreach ($where as $key => $val) {
+                foreach ($where as $w) {
+                    [$key, $op, $val] = explode(' ', $w);
                     $stmt->bindValue(":$key", $val);
                 }
             }
@@ -311,23 +307,24 @@ class SqlDb {
     /*
      * SELECT including columns from tables referenced by foreign keys
      *
-     * @param string $table
-     * @param array (string) $columns       column as "table.column"
-     *                                      or "column" becoming "$table.column"
-     * @param array $where                  ['condition_key'=>"condition_value",...]
+     * @param array $thisTable  ['name' => table name, 'columns' => [column names]]
+     * @param array $joinTables [tables in same format as thisTable]
+     * @param array $where
      * @param int $limit
      * @param string $order
      * @return array success-status and data or error message
      */
     public function dbSelectJoin(
-        $table,
-        array $columns,
+        array $thisTable,
+        array $joinTables,
         array $where = [],
         $limit = 0,
         $order = NULL
     )
     {
-        $order = $order ?: "BY $table.{$table}_id ASC";
+        $table = $thisTable['name'];
+        $order = $order ?: "BY {$thisTable['name']}.id ASC";
+
         $connStatus = $this->dbConnect();
         if (!$connStatus['success']) return $connStatus;
 
@@ -335,41 +332,30 @@ class SqlDb {
             $ws = "";
             if (!empty($where)) {
                 $ws = " WHERE ";
-                foreach ($where as $key => $val) {
-                    $ws .= "$key = :$key";
+                foreach ($where as $w) {
+                    [$key, $op, $val] = explode(' ', $w);
+                    $ws .= "$key :$key";
                 }
             }
             $ls = empty($limit) ? "" : " LIMIT $limit";
-            $columnNames = [];
-            $joinTables = [];
-            foreach ($columns as $column) {
-                if (strpos($column, '.') === False) {
-                    $columnNames[] = "$table.$column";
-                } else {
-                    [$tableName, $columnName] = explode('.', $column, 2);
-                    if ($tableName === $table) {
-                        $columnNames[] = $column;
-                    } else {
-                        if (!in_array($tableName, $joinTables)) {
-                            $joinTables[] = $tableName;
-                        }
-                        $columnNames[] = "$column AS {$tableName}_{$columnName}";
-                    }
-                }
-            }
+
+            $columns = [];
             $js = "";
-            foreach ($joinTables as $tableName) {
-                $js .= " JOIN $tableName ON $table.{$tableName}_id = $tableName.{$tableName}_id";
+            foreach ($thisTable['columns'] as $column) {
+                $columns[] = "{$thisTable['name']}.{$column}";
             }
-            $stmt_text = "SELECT ".join(",",$columnNames)." "
-                ."FROM $table$js$ws ORDER $order$ls";
-            echo $stmt_text;
+            foreach ($joinTables as $table) {
+                $js .= " JOIN {$table['name']} ON {$thisTable['name']}.{$table['name']}_id = {$table['name']}.id";
+                    $columns[] = "{$table['name']}.{$column} AS {$table['name']}_{$column}";
+            }
+
             $stmt = $this->db->prepare(
-                "SELECT ".join(",",$columnNames)." "
-                ."FROM $table$js$ws ORDER $order$ls"
+                "SELECT ".join(",",$columns)." "
+                ."FROM {$thisTable['name']}$js$ws ORDER $order$ls"
             );
             if (!empty($where)) {
-                foreach ($where as $key => $val) {
+                foreach ($where as $w) {
+                    [$key, $op, $val] = explode(' ', $w);
                     $stmt->bindValue(":$key", $val);
                 }
             }
@@ -378,7 +364,7 @@ class SqlDb {
             return ['success' => True, 'data' => $stmt->fetchAll()];
         } catch (PDOException $e) {
             return ['success' => False, 'errormsg' =>
-                "dbSelectJoin: Error fetching data from table(s) based on $table: ".$e->getMessage()];
+                "dbSelectJoin: Error fetching data from table(s) based on {$thisTable['name']}: ".$e->getMessage()];
         }
     }
 

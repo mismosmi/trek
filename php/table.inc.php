@@ -7,8 +7,9 @@ require_once(PHP_ROOT.'php/page.inc.php');
  */
 abstract class Column
 {
-    const DataCol = 0;
-    const AutoCol = 1;
+    const MetaCol = 0;
+    const DataCol = 1
+    const AutoCol = 2;
 }
 
 /**
@@ -104,15 +105,12 @@ class Table extends Page
      */
     public function addRefVars($js)
     {
-        if(preg_match_all('/\btv\.(\w+)\.(\w+)\b/',$js,$matches)) {
-            for ($i = 1; $i < count($matches[1]); $i++) {
-                $tn = $matches[1][$i];
-                $vn = $matches[2][$i];
-                if (!in_array($tn,$this->refVars)) {
-                    $this->refVars[$tn] = [$vn];
-                } elseif (!in_array($vn,$this->refVars[$tn])) {
-                    $this->refVars[$tn][] = $vn;
-                }
+        if(preg_match_all('/\btv\.(\w+)\b/',$js,$matches)) {
+            for ($i = 0; $i < count($matches[1]); $i++) {
+                $colName = $matches[1][$i];
+                if (!in_array($colName,$this->refVars)) {
+                    $this->ref_vars[] = $colName;
+                }    
             }
         }
     }

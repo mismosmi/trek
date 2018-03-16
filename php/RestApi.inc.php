@@ -8,12 +8,6 @@ require_once(PHP_ROOT.'php/SqlDb.inc.php');
 class RestApi extends SqlDb
 {
     /**
-     * Unique database name
-     *
-     * @var string
-     */
-    protected $dbName;
-    /**
      * Contents of config.json
      *
      * @var array
@@ -24,193 +18,114 @@ class RestApi extends SqlDb
      *
      * @var string
      */
-    protected $name;
+    protected $tableName;
     /**
      * Holds table data
      *
      * @var array
      */
-    protected $col;
-    /**
-     * Foreign columns referenced in AutoColumns
-     *
-     * @var array
-     */
-    protected $refs;
+    protected $dbInfo;
 
-    public function __construct($dbName, $defaultTable = NULL, $configFile = NULL)
+    /**
+     * Constructor
+     * load config file
+     * load table info from database definition
+     *
+     * @param string dbName         Name of the requested Database
+     * @param string tableName      Name of the requested Table
+     * @param string configFile     Path to config file
+     */
+    public function __construct($dbName = NULL, $configFile = NULL)
     {
-        $this->dbName = $dbName;
+        $dbname = $dbName ?: $_GET['db'];
         $this->config = empty($configFile)
-            ? require(PHP_ROOT.'config.php')
-            : require(PHP_ROOT.$configFile);
-        $this->name = $defaultTable ?: 'index';
+            ? json_decode(file_get_contents(PHP_ROOT.'config.php'), true)
+            : json_decode(file_get_contents(PHP_ROOT.$configFile), true);
 
         parent::__construct($this->config['database']);
 
-        $this->col = json_decode(file_get_contents(PHP_ROOT.$this->name.'/'.$this->currentTable), true)['columns'];
+        $this->dbInfo = json_decode(file_get_contents(PHP_ROOT.$this->config['pages'][$dbName]['path']), true);
     }
 
         
     /**
      * check if keys exists in table[col] to prevent sql injection attack
      *
+     * @param string $tableName
      * @param array $data
      * @return array only entries where column name exists in $this->col
      */
-    public function validateTableKeys(array $data)
+    private function validateTableKeys($tableName, array $data)
     {
         $dataChecked = [];
-        foreach ($this->col as $col) {
+        foreach ($this->tableInfo[$this->tableName]['columns'] as $col) {
             if (array_key_exists($col['name'], $data) && $col['class'] == 1) // Data Column
                 $dataChecked[$col['name']] = $data[$col['name']];
         }
         return $dataChecked;
     }
-
-    /**
-     * Analyze field-js code for variable names from external tables to fetch
-     * in sql query
-     *
-     * @return array names of all foreign columns
-     */
-    public function getReferences()
-    {
-        $refs = [];
-        foreach ($this->col as $col) {
-            switch ($col['class']) {
-            case 2: // Auto Column
-                if(preg_match_all('/\btv\.(\w+)\b/',$col['js'],$matches)) {
-                    for ($i = 0; $i < count($matches[1]); $i++) {
-                        $colName = $matches[1][$i];
-                        if (!in_array($colName,$this->refVars)) {
-                            $refs[] = $colName;
-                        }    
-                    }
-                }
-                break;
-            case 4: // Foreign Column
-                $refs[] = $col['name'];
-                break;
-            }
-        }
-        return $refs;
-    }
-
-    /**
-     * create table in sql database
-     *
-     * @return array success-status and error message
-     */
-    public function dbCreateThisTable()
-    {
-        $columns = [];
-        foreach ($this->col as $col) {
-            switch($col['class']) {
-            case 1: // Data Column
-            case 3: // Foreign key
-                $columns[] = $col;
-            }
-        }
-        return $this->dbCreateTable($this->name, $columns);
-    }
     
-    /**
-     * process requests for table data
-     * create table if does not exist
-     * $mainValues: values directly displayed in table
-     * $sideValues: values only needed for further calculation in cell scripts
-     *
-     * @return array success-status and data or error message
-     */
-    public function dbSelectThisTable()
-    {
-        $result = $this->dbSelectJoin(
-            $this->name, 
-            array_merge(['*'], $this->getReferences())
-        );
-        if(!$result['success']) {
-            $createResult = $this->dbCreateThisTable();
-            if ($createResult['success']) return [
-                'success' => true, 
-                'columns' => $this->col, 
-                'data' => [],
-                'info' => "Successfully created Table"
-            ];
-            return [
-                'success' => false, 
-                'errormsg' => $result['errormsg'].'\n'.$createResult['errormsg']
-            ];
-        }
-        return ['success' => true, 'columns' => $this->col, 'data' => $result['data']];
-    }
-
-    /**
-     * process requests for inserting new row to table
-     *
-     * @param array $data       POST data from Ajax as array
-     * @return array success-status and data or error message
-     */
-    public function dbInsertIntoThis(array $data)
-    {
-        $insertResult = $this->dbInsert($this->name, $this->validateTableKeys($data));
-        if ($insertResult['success']) return $this->dbSelect($this->name, ['*'], [], 1);
-        else return $insertResult;
-    }
-
-    /**
-     * process requests for modifying row in table
-     *
-     * @param int $row
-     * @param array $data
-     * @return array success-status and data or error message
-     */
-    public function dbAlterInThis($row, array $data)
-    {
-        $alterResult = $this->dbAlter($this->name, $row, $this->validateTableKeys($data));
-        if ($alterResult['success']) return $this->dbSelect(
-            $this->name, ['*'], [$this->name.'_id' => $row]
-        );
-        else return $alterResult;
-    }
-
-    /**
-     * process request for row deletion
-     *
-     * @param int $row
-     * @return array success-status and error message
-     */
-    public function dbDeleteFromThis($row)
-    {
-        $result = $this->dbDelete($this->name, $row);
-        $result['row'] = $row;
-        return $result;
-    }
 
     /**
      * process a database request
      * pass incoming request on to database access methods
      *
-     * @param array $data      GET data from Ajax as array ($_GET)
+     * @param array $postData      POST data from Ajax as array ($_POST)
      * @return string answer from database
      */
-    public function processRequest(array $data)
+    public function processRequest(array $postData = NULL)
     {
+        $postData ?: $_POST;
         $ret = [];
-        switch ($data['operation']) {
-        case 'SELECT TABLE':
-            $ret = $this->dbSelectThisTable();
-            break;
+        switch ($postData['operation']) {
         case 'INSERT':
-            $ret = $this->dbInsertIntoThis($data['data']); 
+            $ret = $this->dbInsert($postData['tablename'], $this->validateTableKeys($postData['tableName'],$postData['data']));
             break;
         case 'DELETE':
-            $ret = $this->dbDeleteFromThis(intval($data['row']));
+            $ret = $this->dbDelete($postData['tablename'], $postData['row']);
             break;
         case 'ALTER':
-            $ret = $this->dbAlterInThis(intval($data['row']), $data['data']);
-            //$ret = ['success' => False, 'errormsg' => json_encode($data)];
+            $ret = $this->dbAlter($postData['tablename'], $postData['row'], $this->validateTableKeys($postData['tableName'],$postData['data']));
             break;
+        }
+        if ($postData['operation'] === "SELECT" || $ret['success']) {
+            $thisTable = ['name' => $postData['tableName'], 'columns' => []];
+            $joinTables = [];
+            foreach ($this->dbInfo['tables'][$postData['tableName']]['columns'] as $col) {
+                switch ($col['class']) {
+                case 0: // Meta Column
+                case 1: // Data Column
+                    $thisTable['columns'][] = $col['name'];
+                    break;
+                case 3: // Foreign Key
+                    $joinTable = ['name' => $col['table'], 'columns' => []];
+                    foreach ($this->dbInfo['tables'][$col['table']]['columns'] as $fcol) {
+                        switch ($fcol['class']) {
+                        case 0: // Meta Column
+                        case 1: // Data Column
+                            $joinTables['columns'][] = $fcol['name'];
+                        }
+                    }
+                    $joinTables[] = $joinTable;
+                }
+            }
+            $since = empty($postData['lastUpdate']) 
+                ? []
+                : ["{$thisTable['name']}.timestamp >" => $postData['lastUpdate']];
+
+            var_dump($joinTables);
+            $ret = $this->dbSelectJoin($thisTable, $joinTables, $since);
+            if (!$ret['success']) {
+                if (empty($postData['lastUpdate'])) {
+                    $create = $this->dbCreateTable($postData['tablename'], $this->tableInfo['tables'][$postData['tablename']]['columns']);
+                    if ($create['success']) {
+                        $ret = $this->dbSelectJoin($thisTable, $joinTables);
+                        $ret['info'] = $create['info'];
+                    }
+                    else $ret['errormsg'] .= "\n".$create['errormsg'];
+                } else $ret['errormsg'] = 
+                    "Something went wrong: trying to refresh table \"{$thisTable['name']}\"";
+            }
         }
         return json_encode($ret);
     }

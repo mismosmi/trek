@@ -140,7 +140,7 @@ class TrekTableView {
 
   // generate insert form
   getInsertForm() {
-    var tr = '<form id="insert">';
+    var tr = '<form id="insert" onsubmit="Trek.insertSubmit()">';
     this.columns.forEach( (col) => {
       switch (col.class) {
         case 1: // Data Column
@@ -150,14 +150,14 @@ class TrekTableView {
           tr += `<th data-col="${col.name}"></th>`;
       }
     });
-    tr += '<th><button type="submit" value="save" class="button is-link" onclick="Trek.insertSubmit()">Save</button><button value="reset" class="button is-text" onclick="Trek.insertReset()">Reset</button></th></form>';
+    tr += '<th><button type="submit" value="save" class="button is-link">Save</button><button value="reset" class="button is-text" onclick="Trek.insertReset()">Reset</button></th></form>';
     return tr;
   }
 
   // generate alter form
   getEditForm(id) {
     this.model.currentRow = id;
-    var tr = '<form id="alter">';
+    var tr = '<form id="alter" onsubmit="Trek.alterSubmit()">';
     this.columns.forEach( (col) => {
       switch (col.class) {
         case 1: // Data Column
@@ -167,7 +167,7 @@ class TrekTableView {
           tr += `<td data-col="${col.name}">${this.model[col.name]}</td>`
     }
     });
-    tr += '<td><button type="submit" value="save" class="button is-link" onclick="Trek.alterSubmit()">Save</button><button value="cancel" class="button is-text" onclick="Trek.alterCancel()">Cancel</button></td></form>';
+    tr += '<td><button type="submit" value="save" class="button is-link"">Save</button><button value="cancel" class="button is-text" onclick="Trek.alterCancel()">Cancel</button></td></form>';
     return tr;
   }
 
@@ -271,10 +271,9 @@ class TrekDatabase {
   // select all visible columns of a table, if tableName is null default is set server-side
   selectTable(tableName = null) {
     this.ajaxRequest(
-      {operation: 'SELECT TABLE', tableName: tableName},
+      {operation: 'SELECT', tableName: tableName},
       (response) => {
-        this.tableName = response.tableName;
-        this.table = new TrekTableView(response.columns, response.data);
+        this.table = new TrekTableView(this.tableColumns[tableName], response.data);
         this.table.replaceHead();
         this.table.replaceBody();
         this.lastUpdate = response.time;
@@ -286,7 +285,7 @@ class TrekDatabase {
   // pull updates since last refresh
   refreshTable() {
     this.ajaxRequest(
-      {operation: 'REFRESH TABLE', tableName: this.tableName, lastUpdate = this.lastUpdate},
+      {operation: 'SELECT', tableName: this.tableName, lastUpdate = this.lastUpdate},
       (response) => {
         this.table.updateBody(response.data);
         this.lastUpdate = response.time;
