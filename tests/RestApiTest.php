@@ -7,7 +7,7 @@ require_once(PHP_ROOT."php/RestApi.inc.php");
 
 use PHPUnit\Framework\TestCase;
 
-class PageTest extends TestCase
+class RestApiTest extends TestCase
 {
     protected $api;
     protected function setUp()
@@ -20,10 +20,11 @@ class PageTest extends TestCase
 
     public function testSelect()
     {
-        $result = json_decode($this->api->processRequest(['operation' => "SELECT", 'tableName' => "schema"]));
-        $this->assertTrue($result['success']);
-        $this->assertEquals([], $result['data']);
-        $this->assertEquals("Successfully created table \"schema\".", $result['info']);
+        echo "TESTSELECT\n";
+        $this->assertArraySubset(
+            ['success' => true, 'data' => []],
+            json_decode($this->api->processRequest(['operation' => "SELECT", 'tableName' => "schema"]), true)
+        );
     }
 
     public function testInsert()
@@ -31,48 +32,41 @@ class PageTest extends TestCase
         $this->api->processRequest([
             'operation' => "INSERT",
             'tableName' => "foreigntable",
-            'data' => ['foreigncolumn' => "foreign value"]
+            'data' => [['foreigncolumn' => "foreign value"]]
         ]);
         $result = json_decode($this->api->processRequest([
             'operation' => "INSERT",
             'tableName' => "schema",
-            'data' => ['datacolumn' => "testvalue", 'foreigntable_id' => 1]
-        ]));
+            'data' => [['datacolumn' => "testvalue", 'foreigntable_id' => 1]]
+        ]), true);
         $this->assertArraySubset([
-            'data' => [
-                '1' => [
-                    'testcolumn' => "testvalue", 
-                    'foreigntable_id' => 1, 
-                    'foreigntable_foreigncolumn' => "foreign value"
-                ]
-            ]
-        ], $result);
+            'id' => 1,
+            'deleted' => 0,
+            'datacolumn' => "testvalue", 
+            'foreigntable_id' => 1, 
+            'foreigntable_deleted' => 0,
+            'foreigntable_foreigncolumn' => "foreign value"
+        ], $result['data'][0]);
     }
 
     public function testRefresh()
     {
-        $result = json_decode($this->api->processRequest(['operation' => "SELECT", 'tableName' => "testtable"]));
+        echo "REFRESH\n";
+        $result = json_decode($this->api->processRequest(['operation' => "SELECT", 'tableName' => "testtable"]),true);
         $this->assertTrue($result['success']);
         $this->assertEquals([], $result['data']);
         $time0 = $result['time'];
         $result = json_decode($this->api->processRequest([
             'operation' => "INSERT", 
             'tableName' => "testtable",
-            'data' => ['testcolumn' => "testvalue"]
-        ]));
-        $time1 = $result['time'];
+            'data' => [['testcolumn' => "testvalue"]]
+        ]),true);
         $result = json_decode($this->api->processRequest([
             'operation' => "SELECT", 
             'tableName' => "testtable",
             'lastUpdate' => $time0
-        ]));
-        $this->assertEquals("testvalue", $result['data']['1']['datacolumn']);
-        $result = json_decode($this->api->processRequest([
-            'operation' => "SELECT", 
-            'tableName' => "testtable",
-            'lastUpdate' => $time1
-        ]));
-        $this->assertEquals([], $result['data']);
+        ]),true);
+        $this->assertArraySubset(['data' => [['id' => 1, 'deleted' => 0, 'testcolumn' => "testvalue"]]], $result);
     }
 
     public function testAlter()
@@ -80,15 +74,14 @@ class PageTest extends TestCase
         $this->api->processRequest([
             'operation' => "INSERT", 
             'tableName' => "testtable",
-            'data' => ['testcolumn' => "testvalue"]
+            'data' => [['testcolumn' => "testvalue"]]
         ]);
         $result = json_decode($this->api->processRequest([
             'operation' => "ALTER",
             'tableName' => "testtable",
-            'row' => 1,
-            'data' => ['testcolumn' => "other value"]
-        ]));
-        $this->assertEquals(['1' => ['testcolumn' => "other value"]]);
+            'data' => [['id' => 1, 'testcolumn' => "other value"]]
+        ]),true);
+        $this->assertArraySubset(['data' => [['id' => '1', 'deleted' => false, 'testcolumn' => "other value"]]], $result);
     }
 
     public function testDelete()
@@ -96,19 +89,22 @@ class PageTest extends TestCase
         $this->api->processRequest([
             'operation' => "INSERT", 
             'tableName' => "testtable",
-            'data' => ['testcolumn' => "testvalue 1"]
+            'data' => [['testcolumn' => "testvalue 1"]]
         ]);
         $this->api->processRequest([
             'operation' => "INSERT", 
             'tableName' => "testtable",
-            'data' => ['testcolumn' => "testvalue 2"]
+            'data' => [['testcolumn' => "testvalue 2"]]
         ]);
         $result = json_decode($this->api->processRequest([
             'operation' => "DELETE",
             'tableName' => "testtable",
-            'row' => 1
-        ]));
-        $this->assertEquals(['1' => ['deleted' => true], '2' => ['testcolumn' => "testvalue 2"]]);
+            'data' => [['id' => 1]]
+        ]),true);
+        $this->assertArraySubset(['data' => [
+            ['id' => 1, 'deleted' => true, 'testcolumn' => "testvalue 1"],
+            ['id' => 2, 'deleted' => false, 'testcolumn' => "testvalue 2"]
+        ]], $result);
     }
 }
 

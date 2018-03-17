@@ -5,6 +5,12 @@
 class SqlDb {
 
     /**
+     * Array with Meta columns that get queried by default
+     *
+     * @const array(string)
+     */
+    const META_COLUMNS = ["id", "timestamp", "deleted"];
+    /**
      * Array with necessary info for db connection
      *
      * @var array(string)
@@ -80,31 +86,34 @@ class SqlDb {
             $fk = "";
             if ($be == 'sqlite') {
                 $query .= "id INTEGER PRIMARY KEY, "
-                    ."timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,"
+                    ."timestamp DATETIME DEFAULT CURRENT_TIMESTAMP, "
                     ."deleted INTEGER DEFAULT 0";
             } elseif ($be == 'mysql') {
                 $query .= "id INT NOT NULL AUTO_INCREMENT, "
-                    ."timestamp TIMESTAMP,"
+                    ."timestamp TIMESTAMP, "
                     ."deleted BOOLEAN DEFAULT 0";
             }
             foreach ($columns as $col) {
                 $colType = "";
                 $colName = "";
-                if ($col['type'] == "FOREIGN KEY") {
-                    $colType = "INTEGER";
-                    $colName = "{$col['table']}_id";
-                    $fk .= ", FOREIGN KEY ($colName) REFERENCES {$col['table']}($colName)";
-                } else {
-                    $colType = $col['type'];
-                    $colName = $col['name'];
+                switch ($col['class']) {
+                case 1: // Data Column
+                    $query .= ", {$col['name']} {$col['type']}"; 
+                    break;
+                case 3: // Foreign Key
+                    if ($col['type'] === "FOREIGN KEY") {
+                        $colName = "{$col['table']}_id";
+                        $query .= ", $colName INTEGER";
+                        $fk .= ", FOREIGN KEY ($colName) REFERENCES {$col['table']}($colName) ON DELETE SET NULL ON UPDATE CASCADE";
+                    }
+                    break;
                 }
-                $query .= ", $colName $colType ";
-                if (!empty($col['required']) && $col['required']) $query .= "NOT NULL ";
+                if (!empty($col['required']) && $col['required']) $query .= " NOT NULL";
             }
             if ($be == 'mysql') $query .= ", PRIMARY KEY ({$name}_id)";
-            $query .= $fk;
+            $query .= $fk.");";
 
-            $query .= ")";
+            //echo $query."\n";
             $this->db->exec($query);
             return ['success' => True, 'info' => "Successfully created table \"$name\"."];
         } catch (PDOException $e) {
@@ -334,21 +343,30 @@ class SqlDb {
                 $ws = " WHERE ";
                 foreach ($where as $w) {
                     [$key, $op, $val] = explode(' ', $w);
-                    $ws .= "$key :$key";
+                    $ws .= "$key $op :".str_replace('.','_',$key);
                 }
             }
             $ls = empty($limit) ? "" : " LIMIT $limit";
 
-            $columns = [];
+            $columns = [
+                "{$thisTable['name']}.id", 
+                "{$thisTable['name']}.timestamp", 
+                "{$thisTable['name']}.deleted"
+            ];
             $js = "";
             foreach ($thisTable['columns'] as $column) {
                 $columns[] = "{$thisTable['name']}.{$column}";
             }
             foreach ($joinTables as $table) {
+                $columns[] = "{$table['name']}.id AS {$table['name']}_id";
+                $columns[] = "{$table['name']}.timestamp AS {$table['name']}_timestamp";
+                $columns[] = "{$table['name']}.deleted AS {$table['name']}_deleted";
                 $js .= " JOIN {$table['name']} ON {$thisTable['name']}.{$table['name']}_id = {$table['name']}.id";
+                foreach ($table['columns'] as $column) {
                     $columns[] = "{$table['name']}.{$column} AS {$table['name']}_{$column}";
+                }
             }
-
+            //echo "SELECT ".join(",",$columns)." FROM {$thisTable['name']}$js$ws ORDER $order$ls\n";
             $stmt = $this->db->prepare(
                 "SELECT ".join(",",$columns)." "
                 ."FROM {$thisTable['name']}$js$ws ORDER $order$ls"
@@ -356,7 +374,7 @@ class SqlDb {
             if (!empty($where)) {
                 foreach ($where as $w) {
                     [$key, $op, $val] = explode(' ', $w);
-                    $stmt->bindValue(":$key", $val);
+                    $stmt->bindValue(":".str_replace('.','_',$key), $val);
                 }
             }
             $stmt->execute();

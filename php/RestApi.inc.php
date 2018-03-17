@@ -58,15 +58,24 @@ class RestApi extends SqlDb
     private function validateTableKeys($tableName, array $data)
     {
         $dataChecked = [];
-        foreach ($this->tableInfo[$this->tableName]['columns'] as $col) {
-            if (array_key_exists($col['name'], $data) && $col['class'] == 1) // Data Column
-                $dataChecked[$col['name']] = $data[$col['name']];
+        foreach ($this->dbInfo['tables'][$tableName]['columns'] as $col) {
+            switch ($col['class']) {
+            case 1: // Data Column
+                if (array_key_exists($col['name'], $data))
+                    $dataChecked[$col['name']] = $data[$col['name']];
+                break;
+            case 3: // Foreign Key
+                $name = "{$col['table']}_id";
+                if (array_key_exists($name, $data)) 
+                    $dataChecked[$name] = $data[$name];
+                break;
+            }
         }
         return $dataChecked;
     }
     
 
-    /**
+    /*[Ma*
      * process a database request
      * pass incoming request on to database access methods
      *
@@ -79,21 +88,30 @@ class RestApi extends SqlDb
         $ret = [];
         switch ($postData['operation']) {
         case 'INSERT':
-            $ret = $this->dbInsert($postData['tablename'], $this->validateTableKeys($postData['tableName'],$postData['data']));
+            foreach ($postData['data'] as $row) {
+                $ret = $this->dbInsert($postData['tableName'], $this->validateTableKeys($postData['tableName'], $row));
+                if (!$ret['success']) break;
+            }
             break;
         case 'DELETE':
-            $ret = $this->dbDelete($postData['tablename'], $postData['row']);
+            foreach ($postData['rows'] as $rowId) {
+                $ret = $this->dbAlter($postData['tableName'], $rowId, ['deleted' => true]);
+                if (!$ret['success']) break;
+            }
             break;
         case 'ALTER':
-            $ret = $this->dbAlter($postData['tablename'], $postData['row'], $this->validateTableKeys($postData['tableName'],$postData['data']));
+            foreach ($postData['data'] as $row) {
+                $ret = $this->dbAlter($postData['tableName'], $row['id'], $this->validateTableKeys($postData['tableName'], $row));
+                if (!$ret['success']) break;
+            }
             break;
         }
+        $time = date('Y-m-d G:i:s');
         if ($postData['operation'] === "SELECT" || $ret['success']) {
             $thisTable = ['name' => $postData['tableName'], 'columns' => []];
             $joinTables = [];
             foreach ($this->dbInfo['tables'][$postData['tableName']]['columns'] as $col) {
                 switch ($col['class']) {
-                case 0: // Meta Column
                 case 1: // Data Column
                     $thisTable['columns'][] = $col['name'];
                     break;
@@ -101,23 +119,21 @@ class RestApi extends SqlDb
                     $joinTable = ['name' => $col['table'], 'columns' => []];
                     foreach ($this->dbInfo['tables'][$col['table']]['columns'] as $fcol) {
                         switch ($fcol['class']) {
-                        case 0: // Meta Column
                         case 1: // Data Column
-                            $joinTables['columns'][] = $fcol['name'];
+                            $joinTable['columns'][] = $fcol['name'];
                         }
                     }
                     $joinTables[] = $joinTable;
                 }
             }
-            $since = empty($postData['lastUpdate']) 
-                ? []
-                : ["{$thisTable['name']}.timestamp >" => $postData['lastUpdate']];
+            $where = empty($postData['lastUpdate']) 
+                ? ["{$thisTable['name']}.deleted = 0"]
+                : ["{$thisTable['name']}.timestamp > {$postData['lastUpdate']}"];
 
-            var_dump($joinTables);
-            $ret = $this->dbSelectJoin($thisTable, $joinTables, $since);
+            $ret = $this->dbSelectJoin($thisTable, $joinTables, $where);
             if (!$ret['success']) {
                 if (empty($postData['lastUpdate'])) {
-                    $create = $this->dbCreateTable($postData['tablename'], $this->tableInfo['tables'][$postData['tablename']]['columns']);
+                    $create = $this->dbCreateTable($postData['tableName'], $this->dbInfo['tables'][$postData['tableName']]['columns']);
                     if ($create['success']) {
                         $ret = $this->dbSelectJoin($thisTable, $joinTables);
                         $ret['info'] = $create['info'];
@@ -127,6 +143,7 @@ class RestApi extends SqlDb
                     "Something went wrong: trying to refresh table \"{$thisTable['name']}\"";
             }
         }
+        $ret['time'] = $time;
         return json_encode($ret);
     }
 
