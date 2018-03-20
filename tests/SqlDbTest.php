@@ -42,7 +42,7 @@ class SqlDbTest extends TestCase
         $columns = [['name' => "testcol", 'type' => "VARCHAR", 'required' => True, 'class' => 1]];
         $this->assertTrue($this->db->dbCreateTable('testtable', $columns)['success']);
         $result = ['success' => True, 'data' => []];
-        $this->assertArraySubset($result, $this->db->dbSelect('testtable'));
+        $this->assertEquals($result, $this->db->dbSelect('testtable'));
     }
 
     public function testInsertAndSelect()
@@ -108,18 +108,13 @@ class SqlDbTest extends TestCase
             ['table' => "referencedTable", 'type' => "FOREIGN KEY", 'class' => 3]];
         $this->db->dbCreateTable('testtable', $columns2);
         $this->db->dbInsert('testtable', ['referencedTable_id' => "1", 'testcol' => "v2"]);
-        $result = ['success' => True, 'data' => [['id' => "1", 'testcol' => "v2", 'referencedTable_testcol' => "testvalue"]]];
+        $result = ['success' => True, 'data' => [1 => ['testcol' => "v2", 'referencedTable_testcol' => "testvalue"]]];
         $this->assertArraySubset($result, $this->db->dbSelectJoin(
-            ['name' => "testtable", 'columns' => ["testcol"]], 
-            [['name' => "referencedTable", 'columns' => ["testcol"]]]
+            ['name' => "testtable", 'columns' => [["name" => "testcol", 'class' => 1, 'type' => "VARCHAR"]]], 
+            [['name' => "referencedTable", 'columns' => [['name' => "testcol", 'class'=>1, 'type'=>"VARCHAR"]]]]
         ));
     }
 
-
-        
-
-    
 }
 
 
-?>

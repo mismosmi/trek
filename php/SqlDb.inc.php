@@ -53,7 +53,11 @@ class SqlDb {
 
         try {
             if ($this->info['backend'] == 'sqlite') {
-                $conn = new PDO("sqlite:{$this->info['path']}");
+                if ($this->info['path'] === ":memory:") $conn = new PDO("sqlite::memory:");
+                else {
+                    $path = PHP_ROOT.$this->info['path'];
+                    $conn = new PDO("sqlite:$path");
+                }
             } elseif ($this->info['backend'] == 'mysql') {
                 $conn = new PDO("mysql:host={$this->info['host']};dbname={$this->info['dbname']}",
                     $this->info['username'], $this->info['password']);
@@ -353,17 +357,27 @@ class SqlDb {
                 "{$thisTable['name']}.timestamp", 
                 "{$thisTable['name']}.deleted"
             ];
+            $columnTypes = ['timestamp' => "TIMESTAMP"];
+
             $js = "";
             foreach ($thisTable['columns'] as $column) {
-                $columns[] = "{$thisTable['name']}.{$column}";
+                if ($column['class'] === 1) {
+                    $columns[] = "{$thisTable['name']}.{$column['name']}";
+                    $columnTypes[$column['name']] = $column['type'];
+                }
             }
             foreach ($joinTables as $table) {
                 $columns[] = "{$table['name']}.id AS {$table['name']}_id";
                 $columns[] = "{$table['name']}.timestamp AS {$table['name']}_timestamp";
                 $columns[] = "{$table['name']}.deleted AS {$table['name']}_deleted";
+                $columnTypes["{$table['name']}_id"] = "INTEGER";
+                $columnTypes["{$table['name']}_timestamp"] = "TIMESTAMP";
                 $js .= " JOIN {$table['name']} ON {$thisTable['name']}.{$table['name']}_id = {$table['name']}.id";
                 foreach ($table['columns'] as $column) {
-                    $columns[] = "{$table['name']}.{$column} AS {$table['name']}_{$column}";
+                    if ($column['class'] === 1) {
+                        $columns[] = "{$table['name']}.{$column['name']} AS {$table['name']}_{$column['name']}";
+                        $columnTypes["{$table['name']}_{$column['name']}"] = $column['type'];
+                    }
                 }
             }
             //echo "SELECT ".join(",",$columns)." FROM {$thisTable['name']}$js$ws ORDER $order$ls\n";
@@ -379,7 +393,30 @@ class SqlDb {
             }
             $stmt->execute();
             $stmt->setFetchMode(PDO::FETCH_ASSOC);
-            return ['success' => True, 'data' => $stmt->fetchAll()];
+            $data = [];
+            while ($row = $stmt->fetch()) {
+                if ($row['deleted']) {
+                    $data[$row['id']] = ['deleted' => true];
+                    continue;
+                }
+                $data[$row['id']] = [];
+                foreach ($row as $key => $val) {
+                    if ($key === "id" || preg_match("/deleted$/", $key)) continue;
+                    elseif (strtoupper(substr($columnTypes[$key], 0, 3)) === "INT") {
+                        $data[$row['id']][$key] = intval($val);
+                    } elseif (strtoupper(substr($columnTypes[$key], 0, 4)) === "BOOL") {
+                        $data[$row['id']][$key] = filter_var($val, FILTER_VALIDATE_BOOLEAN);
+                    } elseif (
+                        strtoupper(substr($columnTypes[$key], 0, 7)) === "DECIMAL" ||
+                        strtoupper(substr($columnTypes[$key], 0, 6)) === "DOUBLE" 
+                    ) {
+                        $data[$row['id']][$key] = floatval($val);
+                    } else {
+                        $data[$row['id']][$key] = $val;
+                    }
+                }
+            }
+            return ['success' => True, 'data' => $data];
         } catch (PDOException $e) {
             return ['success' => False, 'errormsg' =>
                 "dbSelectJoin: Error fetching data from table(s) based on {$thisTable['name']}: ".$e->getMessage()];

@@ -23,13 +23,13 @@ class Database extends Page
      *
      * @var string
      */
-    protected $name;
+    protected $dbName;
     /**
-     * Array holding all the tables as arrays
+     * Array holding database information
      *
      * @var array
      */
-    protected $tables;
+    protected $dbInfo;
 
     /**
     * Constructor
@@ -42,23 +42,18 @@ class Database extends Page
     * @param string $configFile use special config.php, mainly for testing
     */
     public function __construct(
-        $name,
+        $dbName,
         $title = '',
         $favicon = '',
         $configFile = ''
     ) 
     {
-        $this->name = $name;
+        $this->dbName = $dbName;
         parent::__construct($title, $favicon, $configFile);
-        $this->addJs('database.js');
+        $this->dbInfo = json_decode(file_get_contents(PHP_ROOT.$this->config['pages'][$dbName]['path']), true);
+
+        $this->addJs('js/trekdb.js');
         
-        // read tables from folder named same as database name
-        if (is_dir(PHP_ROOT.$name) {
-            $dh = opendir(PHP_ROOT.$name);
-            while (($file = readdir($dh)) !== false) {
-                array_push($this->tables, json_decode($file));
-            }
-        }
     }
 
     /**
@@ -74,9 +69,59 @@ class Database extends Page
     /**
      * generate navigation for table-tabs
      */
-    public function getTableNav()
+    public function getDbNav()
     {
+        $tabs = "";
+        foreach ($this->dbInfo['order'] as $name) {
+            $data = $this->dbInfo['tables'][$name];
+            $tabs .= "  <li data-table=\"$name\" onclick=\"Trek.selectTable(this)\">{$data['title']}</li>\n";
+        }
+        return 
+             "<div class=\"tabs\" id=\"trek-table-nav\">\n"
+            ." <ul>\n"
+            .$tabs
+            ." </ul>\n"
+            ."</div>\n";
     }
+
+    /**
+     * generate script
+     */
+    public function getScript()
+    {
+        $tableColumns = '';
+        foreach ($this->dbInfo['order'] as $tableName) {
+            $table = $this->dbInfo['tables'][$tableName];
+            $tableColumns .= 
+                 "      '$tableName': {\n"
+                ."        name: \"{$table['name']}\",\n"
+                ."        class: {$table['class']},\n"
+                ."        title: \"{$table['title']}\"";
+            if ($table['class'] === 2) {
+                $tableColumns .= ",\n        run: function(tv) {\n";
+                if (strpos($table['js'], ";") === false) {
+                    $tableColumns .= "return {$table['js']};\n}\n";
+                } else {
+                    $tableColumns .= $table['js']."\n}\n";
+                }
+            }
+            $tableColumns .= "      },";
+        }
+
+        return
+             "<script>\n"
+            ."document.addEventListener('DOMContentLoaded', () = > {\n"
+            ."  Trek = new TrekDatabase({\n"
+            ."    tableName: '{$this->dbInfo['order'][0]}',\n"
+            ."    tableColumns: {\n"
+            .$tableColumns
+            ."    }\n"
+            ."  }\n"
+            ."});\n"
+            ."</script>\n";
+    }
+                    
+
 
 }
 

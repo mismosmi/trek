@@ -35,12 +35,12 @@ class RestApi extends SqlDb
      * @param string tableName      Name of the requested Table
      * @param string configFile     Path to config file
      */
-    public function __construct($dbName = NULL, $configFile = NULL)
+    public function __construct($dbName, $configFile = NULL)
     {
-        $dbname = $dbName ?: $_GET['db'];
         $this->config = empty($configFile)
             ? json_decode(file_get_contents(PHP_ROOT.'config.php'), true)
             : json_decode(file_get_contents(PHP_ROOT.$configFile), true);
+
 
         parent::__construct($this->config['database']);
 
@@ -75,16 +75,15 @@ class RestApi extends SqlDb
     }
     
 
-    /*[Ma*
+    /**
      * process a database request
      * pass incoming request on to database access methods
      *
      * @param array $postData      POST data from Ajax as array ($_POST)
      * @return string answer from database
      */
-    public function processRequest(array $postData = NULL)
+    public function processRequest(array $postData)
     {
-        $postData ?: $_POST;
         $ret = [];
         switch ($postData['operation']) {
         case 'INSERT':
@@ -94,14 +93,14 @@ class RestApi extends SqlDb
             }
             break;
         case 'DELETE':
-            foreach ($postData['rows'] as $rowId) {
-                $ret = $this->dbAlter($postData['tableName'], $rowId, ['deleted' => true]);
+            foreach ($postData['rows'] as $id) {
+                $ret = $this->dbAlter($postData['tableName'], $id, ['deleted' => true]);
                 if (!$ret['success']) break;
             }
             break;
         case 'ALTER':
-            foreach ($postData['data'] as $row) {
-                $ret = $this->dbAlter($postData['tableName'], $row['id'], $this->validateTableKeys($postData['tableName'], $row));
+            foreach ($postData['data'] as $id => $row) {
+                $ret = $this->dbAlter($postData['tableName'], $id, $this->validateTableKeys($postData['tableName'], $row));
                 if (!$ret['success']) break;
             }
             break;
@@ -113,14 +112,14 @@ class RestApi extends SqlDb
             foreach ($this->dbInfo['tables'][$postData['tableName']]['columns'] as $col) {
                 switch ($col['class']) {
                 case 1: // Data Column
-                    $thisTable['columns'][] = $col['name'];
+                    $thisTable['columns'][] = $col;
                     break;
                 case 3: // Foreign Key
                     $joinTable = ['name' => $col['table'], 'columns' => []];
                     foreach ($this->dbInfo['tables'][$col['table']]['columns'] as $fcol) {
                         switch ($fcol['class']) {
                         case 1: // Data Column
-                            $joinTable['columns'][] = $fcol['name'];
+                            $joinTable['columns'][] = $fcol;
                         }
                     }
                     $joinTables[] = $joinTable;
@@ -133,7 +132,15 @@ class RestApi extends SqlDb
             $ret = $this->dbSelectJoin($thisTable, $joinTables, $where);
             if (!$ret['success']) {
                 if (empty($postData['lastUpdate'])) {
-                    $create = $this->dbCreateTable($postData['tableName'], $this->dbInfo['tables'][$postData['tableName']]['columns']);
+                    $create = $this->dbCreateTable($thisTable['name'], $this->dbInfo['tables'][$thisTable['name']]['columns']);
+                    foreach ($joinTables as $table) {
+                        $createsub = $this->dbCreateTable($table['name'], $this->dbInfo['tables'][$table['name']]['columns']);
+                        if ($createsub['success']) $create['info'] .= "\n".$createsub['info'];
+                        else {
+                            $create['success'] = false;
+                            $create['errormsg'] .= "\n".$createsub['errormsg'];
+                        }
+                    }
                     if ($create['success']) {
                         $ret = $this->dbSelectJoin($thisTable, $joinTables);
                         $ret['info'] = $create['info'];
