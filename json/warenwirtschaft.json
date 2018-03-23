@@ -1,0 +1,79 @@
+{
+    "name": "warenwirtschaft",
+    "title": "Warenwirtschaft",
+    "tables": {
+        "projects": {
+            "title": "Projects",
+            "columns": [
+                {
+                    "name": "id",
+                    "title": "Project-ID",
+                    "class": 0
+                },
+                {
+                    "name": "category",
+                    "title": "Category",
+                    "class": 1,
+                    "type": "VARCHAR(30)"
+                },
+                {
+                    "name": "zone",
+                    "title": "Zone",
+                    "class": 1,
+                    "type": "VARCHAR(30)"
+                },
+                {
+                    "name": "what",
+                    "title": "What (Define Project)",
+                    "class": 1,
+                    "type": "VARCHAR(30)"
+                },
+                {
+                    "name": "department",
+                    "title": "Department/Team",
+                    "class": 1,
+                    "type": "VARCHAR(30)"
+                },
+                {
+                    "name": "responsibility",
+                    "title": "Person Responsible",
+                    "class": 1,
+                    "type": "VARCHAR(30)"
+                },
+                {
+                    "name": "budget",
+                    "title": "Budget",
+                    "class": 1,
+                    "type": "VARCHAR(30)"
+                },
+                {
+                    "name": "budgetsum",
+                    "title": "Sum",
+                    "class": 1,
+                    "type": "DECIMAL"
+                },
+                {
+                    "name": "spending",
+                    "title": "Spending",
+                    "class": 1,
+                    "type": "DECIMAL"
+                },
+                {
+                    "name": "budgetleft",
+                    "title": "Budget Left",
+                    "class": 2,
+                    "js": "tv.budgetsum - tv.spending"
+                },
+                {
+                    "name": "notes",
+                    "title": "Notes",
+                    "class": 1,
+                    "type": "VARCHAR(30)"
+                }
+            ]
+        }
+    },
+    "order": [
+        "projects"
+    ]
+}

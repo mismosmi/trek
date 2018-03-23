@@ -21,12 +21,18 @@
             "type": "database",
             "path": "json/schemadb.json",
             "title": "Schema Database"
+        },
+        "warenwirtschaft": {
+            "type": "database",
+            "path": "json/warenwirtschaft.json",
+            "title": "Warenwirtschaft"
         }
     },
 
     "order": [
         "home",
-        "schemadb"
+        "schemadb",
+        "warenwirtschaft"
     ],
 
     "database": {
