@@ -1,0 +1,35 @@
+{
+    "defaultJs": [],
+
+    "defaultCss": [],
+
+    "favicon": "favicon.ico",
+
+    "author": "Michel Smola",
+
+    "title": "TEST",
+
+    "description": "Test - a unit test.",
+
+    "pages": {
+        "home": {
+            "type": "html",
+            "path": "index.php",
+            "title": "Home"
+        },
+        "schemadb": {
+            "type": "database",
+            "path": "json/schemadb.json",
+            "title": "Schema Database"
+        }
+    },
+    "order": [
+        "home",
+        "schemadb"
+    ],
+
+    "database": {
+        "backend": "sqlite",
+        "path": ":memory:"
+    }
+}

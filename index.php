@@ -4,27 +4,33 @@
 define('PHP_ROOT', '');
 define('HTML_ROOT', '');
 define('HTML_FILE', basename(__FILE__));
-require_once('php/page.inc.php');
-$p = new Page('Trek');
-echo $p->getHead('very simple inventory control'); 
+require_once('php/Page.inc.php');
+$p = new Page();
+echo $p->getHead(); 
 ?>
 <body>
 <?php echo $p->getNavbar(); ?>
-<main role="main" class="container-fluid">
-    <div class="row">
-        <div class="col-md-3"></div>
-        <div class="col-md-6">
-            <h1 class="italic">TREK</h1>
-        </div>
-    </div>
-    <div class="row">
-        <div class="col-md-1"></div>
-        <div class="col-md-10 col-md-offset-1">
-            <?php echo $p->getMainNavigation('','btn btn-default btn-lg btn-block',''); ?>
-        </div>
-    </div>
-
-</main>
-<?php echo $p->getScripts(); ?>
+<section class="section">
+ <div class="container">
+  <h1 class="title">TREK</h1>
+  <h2 class="subtitle">A simple SQL interface</h2>
+ </div>
+</section>
+<section class="section">
+ <div class="container">
+  <h2 class="title">Databases:</h2>
+  <div class="buttons">
+<?php 
+foreach ($p->config['order'] as $name) {
+    $data = $p->config['pages'][$name];
+    if ($data['type'] === "database") {
+        $path = HTML_ROOT."php/db.php?db=$name";
+        echo "   <a href=\"$path\" class=\"button\">{$data['title']}</a>\n";
+    }
+}
+?>
+  </div>
+ </div>
+</section>
 </body>
 </html>

@@ -1,0 +1,40 @@
+{
+    "defaultJs": [],
+
+    "defaultCss": [],
+    
+    "favicon": "img/logo.ico",
+
+    "author": "Michel Smola",
+
+    "title": "TREK",
+
+    "description": "Trek - A simple SQL interface",
+
+    "pages": {
+        "home": {
+            "type": "html",
+            "path": "index.php",
+            "title": "Home"
+        },
+        "schemadb": {
+            "type": "database",
+            "path": "json/schemadb.json",
+            "title": "Schema Database"
+        }
+    },
+
+    "order": [
+        "home",
+        "schemadb"
+    ],
+
+    "database": {
+        "backend": "mysql",
+        "host": "localhost",
+        "username": "trek",
+        "password": "IvVJWPG3",
+        "dbname": "trek"
+    }
+}
+

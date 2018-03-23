@@ -7,8 +7,9 @@ require_once(PHP_ROOT.'php/page.inc.php');
  */
 abstract class Column
 {
-    const DataCol = 0;
-    const AutoCol = 1;
+    const MetaCol = 0;
+    const DataCol = 1
+    const AutoCol = 2;
 }
 
 /**
@@ -55,10 +56,10 @@ class Table extends Page
     * @param string $configFile use special config.php, mainly for testing
     */
     public function __construct(
-        string $name,
-        string $title = '',
-        string $favicon = '',
-        string $configFile = ''
+        $name,
+        $title = '',
+        $favicon = '',
+        $configFile = ''
     ) 
     {
         $this->name = $name;
@@ -79,11 +80,11 @@ class Table extends Page
      * @param bool $required        required or optional column, default optional
      */
     public function addDataCol(
-        string $name, 
-        string $type,
-        string $title, 
-        string $placeholder = '',
-        bool $required = False
+        $name, 
+        $type,
+        $title, 
+        $placeholder = '',
+        $required = False
     ) 
     {
         $this->col[] = [
@@ -102,17 +103,14 @@ class Table extends Page
      *
      * @param string $js
      */
-    public function addRefVars(string $js)
+    public function addRefVars($js)
     {
-        if(preg_match_all('/\btv\.(\w+)\.(\w+)\b/',$js,$matches)) {
-            for ($i = 1; $i < count($matches[1]); $i++) {
-                $tn = $matches[1][$i];
-                $vn = $matches[2][$i];
-                if (!in_array($tn,$this->refVars)) {
-                    $this->refVars[$tn] = [$vn];
-                } elseif (!in_array($vn,$this->refVars[$tn])) {
-                    $this->refVars[$tn][] = $vn;
-                }
+        if(preg_match_all('/\btv\.(\w+)\b/',$js,$matches)) {
+            for ($i = 0; $i < count($matches[1]); $i++) {
+                $colName = $matches[1][$i];
+                if (!in_array($colName,$this->refVars)) {
+                    $this->ref_vars[] = $colName;
+                }    
             }
         }
     }
@@ -125,9 +123,9 @@ class Table extends Page
      * @param string $js            script to calculate value
      */
     public function addAutoCol(
-        string $name,
-        string $title,
-        string $js
+        $name,
+        $title,
+        $js
     )
     {
         $this->col[] = [
@@ -144,7 +142,7 @@ class Table extends Page
      *
      * @param string $name
      */
-    public function setIdCol(string $name)
+    public function setIdCol($name)
     {
         $this->idname = $name;
     }
@@ -210,7 +208,7 @@ class Table extends Page
             }
         }
         $scripts .=
-            "]\n});\n"
+            "{class: 2, name: \"entrydate\"}\n]\n});\n"
             ."});\n"
             ."</script>\n";
         return $scripts;
@@ -312,7 +310,7 @@ class Table extends Page
      * @param array $data
      * @return array success-status and data or error message
      */
-    public function dbAlterInThis(int $row, array $data)
+    public function dbAlterInThis($row, array $data)
     {
         $alterResult = $this->dbAlter($this->name, $row, $this->validateTableKeys($data));
         if ($alterResult['success']) return $this->dbSelect(
@@ -327,7 +325,7 @@ class Table extends Page
      * @param int $row
      * @return array success-status and error message
      */
-    public function dbDeleteFromThis(int $row)
+    public function dbDeleteFromThis($row)
     {
         $result = $this->dbDelete($this->name, $row);
         $result['row'] = $row;
