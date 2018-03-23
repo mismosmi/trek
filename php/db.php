@@ -18,7 +18,7 @@ echo $db->getHead();
 <section class="section">
  <div class="container">
   <div class="buttons has-addons is-pulled-right">
-   <span class="button is-primary" onclick="Trek.toggleEditMode(this)">Edit</span>
+   <span id="trek-edit-button" class="button is-primary">Edit</span>
   </div>
 <?php echo $db->getDbNav(); ?>
  </div>

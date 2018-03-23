@@ -1,7 +1,7 @@
 {
     "defaultJs": [],
 
-    "defaultCss": ["css/bulma.css"],
+    "defaultCss": [],
     
     "favicon": "img/logo.ico",
 
@@ -9,7 +9,7 @@
 
     "title": "TREK",
 
-    "description": "Trek - simple inventory management",
+    "description": "Trek - A simple SQL interface",
 
     "pages": {
         "home": {
