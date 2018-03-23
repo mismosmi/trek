@@ -69,6 +69,7 @@ class Page {
             ? $this->config['favicon']
             : $favicon;
 
+        $this->addCss("css/bulma.css");
         $this->addJs("js/trekpage.js");
     }
 
@@ -78,7 +79,7 @@ class Page {
     * @param string $filePath
     */
     public function addJs($filePath) {
-        $this->includeJs[] = $filePath;
+        $this->includeJs[] = HTML_ROOT.$filePath;
     }
 
     /**
@@ -87,7 +88,7 @@ class Page {
     * @param string $filePath
     */
     public function addCss($filePath) {
-        $this->includeCss[] = $filePath;
+        $this->includeCss[] = HTML_ROOT.$filePath;
     }
 
     /**
@@ -162,11 +163,12 @@ class Page {
     */
     public function getNavbar() {
         $nav = $this->getMainNavigation();
+        $homeLink = HTML_ROOT.'index.php';
         return 
              "<nav class=\"navbar is-primary\" role=\"navigation\" aria-label=\"main navigation\">\n"
             ." <div class=\"container\">\n"
             ."  <div class=\"navbar-brand\">\n"
-            ."   <a href=\"index.php\" class=\"navbar-item is-italic\">{$this->config['title']}</a>\n"
+            ."   <a href=\"$homeLink\" class=\"navbar-item is-italic\">{$this->config['title']}</a>\n"
             ."   <div class=\"navbar-burger\"><span></span><span></span><span></span></div>\n"
             ."  </div>\n"
             .$nav

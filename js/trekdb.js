@@ -7,12 +7,7 @@ class TrekTableModel {
   constructor(columnData, tableData) {
 
     // append all table-data to the database-object
-    tableData.forEach( (row) => {
-      this[row.id] = {};
-      columnData.forEach( (col) => {
-        switch (col.type) {
-          this[row.id][col.name] = 
-    });
+    Object.assign(this, tableData);
 
     // find row index of future new row
     this.calcNextRow(true);
@@ -21,16 +16,24 @@ class TrekTableModel {
     columnData.forEach( (col) => {
       switch (col.class) {
         case 0:
-          Object.defineProperty(this, col.name, {
-            get: () => {
-              return this[this.currentRow][col.name];
-            }
-          });
+          if (col.name === 'id') {
+            Object.defineProperty(this, 'id', {
+              get: () => {
+                return this.currentRow;
+              }
+            });
+          } else {
+            Object.defineProperty(this, col.name, {
+              get: () => {
+                return this[this.currentRow][col.name];
+              }
+            });
+          }
           break;
         case 1:
-        case 3:
           Object.defineProperty(this, col.name, {
             get: () => {
+              //return (this[this.currentRow][col.name] === null) ? '' : this[this.currentRow][col.name];
               return this[this.currentRow][col.name];
             },
             set: (value) => {
@@ -41,37 +44,37 @@ class TrekTableModel {
         case 2:
           Object.defineProperty(this, col.name, {
             get: () => {
-              return col.js(this);
+              return col.run(this);
             }
           });
+          break;
+        case 3:
+          Object.defineProperty(this, col.name, {
+            get: () => {
+              return (this[this.currentRow][col.name]) ? this[this.currentRow][col.name] : '';
+            },
+            set: (value) => {
+              this[this.currentRow][col.name] = value;
+            }
+          });
+          break;
       }
     });
 
-
-    this.attachAccessors(this[this.currentRow]);
-
-    // append empty row as nextRow
-    this[this.nextRow] = {};
   }
 
   // find largest numerical index and calculate the highest index row and next row
   calcNextRow(setCurrentRow = false) {
     let max = 0;
     Object.keys(this).forEach( (key) => {
-      index = parseInt(key);
+      const index = parseInt(key);
       if (!isNaN(index) && max < index) max = index;
     });
     if (setCurrentRow) this.currentRow = max;
     this.nextRow = max + 1;
-  }
 
-  // Update Data for specific Rows from data given in ajax payload
-  update(tableData) {
-    tableData.forEach( (row) => {
-      if (row.deleted) delete this[row.id];
-      else this[row.id] = row;
-    });
-    this.calcNextRow(true);
+    // append empty row as nextRow
+    this[this.nextRow] = {};
   }
 
   // Append new row
@@ -94,7 +97,7 @@ class TrekTableModel {
   // Loop over rows up to currentRow
   forEach(doThis, maxIndex = this.currentRow) {
     for (var index = 1; index < maxIndex; index++) {
-      if (this.hasOwnProperty(index)) {
+      if (this[index] !== undefined) {
         doThis(this[index], index);
       }
     }
@@ -102,7 +105,7 @@ class TrekTableModel {
 
   // backup a row to restore on edit cancel
   backup(id) {
-    this.backup = {
+    this.backupRow = {
       id: id,
       data: Object.assign({}, this[id])
     }
@@ -110,9 +113,8 @@ class TrekTableModel {
 
   // restore the backed-up row
   restore() {
-    this[this.backup.id] = this.backup.data;
+    this[this.backupRow.id] = this.backupRow.data;
   }
-    
 
 }
 
@@ -138,6 +140,24 @@ class TrekTableView {
     return tr;
   }
 
+  // return only data and foreign key fields for ajax requests
+  getDataFields(rowId) {
+    this.model.currentRow = rowId;
+    const data = {};
+    this.columns.forEach( (col) => {
+      switch (col.class) {
+        case 1:
+          if (this.model[col.name] === 0 || this.model[col.name]) data[col.name] = this.model[col.name];
+          break;
+        case 3:
+          if (this.model[col.name]) data[col.name] = this.model[col.name];
+          break;
+      }
+    });
+    return data;
+  }
+          
+
 
   // generate table head
   getHeadRow() {
@@ -151,55 +171,65 @@ class TrekTableView {
 
   // generate insert form
   getInsertForm() {
-    let tr = '<form id="insert" onsubmit="Trek.insertSubmit()">';
+    let tr = '';
     this.columns.forEach( (col) => {
       switch (col.class) {
         case 1: // Data Column
+        case 3: // Foreign Key
           tr += `<th data-col="${col.name}" class="control"><input class="input" type="text" placeholder="${col.title}" oninput="Trek.updateInsertForm(this)"></th>`;
+          break;
+        case 2: // Auto Column
+          tr += `<th data-col="${col.name}">${this.model[col.name]}</th>`;
           break;
         default:
           tr += `<th data-col="${col.name}"></th>`;
       }
     });
-    tr += '<th><button type="submit" value="save" class="button is-link">Save</button><button value="reset" class="button is-text" onclick="Trek.insertReset()">Reset</button></th></form>';
+    tr += '<th><div class="buttons has-addons"><span value="trek-insert-save" class="button is-link" onclick="Trek.insertSubmit(this)">Save</span><span value="trek-insert-reset" class="button is-text" onclick="Trek.insertReset()">Reset</span></div></th>';
     return tr;
   }
 
   // generate alter form
   getEditForm(id) {
     this.model.currentRow = id;
-    let tr = '<form id="alter" onsubmit="Trek.alterSubmit()">';
+    let tr = '';
     this.columns.forEach( (col) => {
       switch (col.class) {
         case 1: // Data Column
+        case 3: // Foreign Key
           tr += `<td data-col="${col.name}" class="control"><input class="input" type="text" placeholder="${this.model[col.name]}" oninput="Trek.updateEditForm(this)"></td>`;
           break;
         default:
           tr += `<td data-col="${col.name}">${this.model[col.name]}</td>`
     }
     });
-    tr += '<td><button type="submit" value="save" class="button is-link"">Save</button><button value="cancel" class="button is-text" onclick="Trek.alterCancel()">Cancel</button></td></form>';
+    tr += '<td><div class="buttons has-addons"><span value="trek-edit-save" class="button is-link">Save</span><span value="trek-edit-cancel" class="button is-text">Cancel</span></div></td></form>';
     return tr;
   }
 
   // generate table head and replace current contents
   replaceHead() {
-    this.tableHead.innerHTML = this.getHeadRow()+this.getInsertForm();
+    this.tableHead.innerHTML = `<tr>${this.getHeadRow()}</tr><tr id="insertform">${this.getInsertForm()}</tr>`;
   }
 
   // generate table body and replace current contents
   replaceBody() {
     let tbody = '';
     for (var index = this.model.nextRow - 1; index > 0; index--) {
-      if (this.model.hasOwnProperty(index)) tbody += `<tr id="${index}">${this.getRow(index)}</tr>`;
+      if (this.model[index] !== undefined) {
+        const tr = document.createElement('tr');
+        tr.id = index;
+        tr.innerHTML = this.getRow(index);
+        tr.addEventListener('click', Trek.edit);
+        this.tableBody.appendChild(tr);
+      }
     }
-    this.tableBody.innerHTML = tbody;
   }
 
   // generate single row and replace in DOM
   replaceRow(id) {
-    const row = this.tableBody.getElementById(id);
-    if (this.model.hasOwnProperty(id)) { 
+    const row = document.getElementById(id);
+    if (this.model[id] !== undefined) { 
       row.innerHTML = this.getRow(id);
       return row
     } else {
@@ -207,27 +237,26 @@ class TrekTableView {
     }
   }
 
-  // generate alter form and replace row in DOM
-  editRow(id) {
-    this.model.backup(id);
-    const row = this.tableBody.getElementById(id);
-    row.innerHTML = this.getEditForm(id);
-    return row;
-  }
-
   // update table body with changed rows
   updateBody(tableData) {
-    this.model.update(tableData);
-    Object.keys(tableData).forEach( (row, id) => {
-      const row = this.tableBody.getElementById(id);
-      if (row.deleted) {
-        delete this.model[id];
-        this.tableBody.removeChild(row);
+    Object.keys(tableData).forEach( (id) => {
+      let tr = document.getElementById(id);
+      if (tr === null && !tableData[id].deleted) {
+        this.model[id] = tableData[id];
+        tr = document.createElement('tr');
+        tr.innerHTML = this.getRow(id);
+        tr.id = id;
+        tr.addEventListener('click', Trek.edit);
+        this.tableBody.insertBefore(tr, this.tableBody.children[0]);
+      } else if (tableData[id].deleted) {
+        this.model[id] = undefined;
+        this.tableBody.removeChild(tr);
       } else {
-        this.model[id] = row;
-        row.innerHTML = this.getRow(id);
+        this.model[id] = tableData[id];
+        tr.innerHTML = this.getRow(id);
       }
     });
+    this.model.calcNextRow(true);
   }
 
 
@@ -241,58 +270,68 @@ class TrekDatabase {
   constructor(settings) {
     this.ajaxUrl = location.origin+'/php/api.php';
     Object.assign(this, settings);
-    this.activeTab = document.querySelector(`#trek-table-nav li[data-table={this.tableName}]`);
-    this.selectTable(this.tableName);
+    this.activeTab = document.querySelector('#trek-db-nav li[data-table="'+this.tableName+'"]');
+    this.selectTable();
+    this.editMode = false;
+    console.log('constructor editMode: ',this.editMode);
   }
 
   // switch row to edit form
   edit(event) {
-    const row = event.srcElement;
-    row.removeEventListener('click', this.edit);
-    if (this.hasOwnPropery('editForm')) this.editDone();
-    this.table.editRow(row.id);
-    this.editForm = document.getElementById('alterform');
+    console.log('edit editMode: ',this.editMode, ' currentTarget: ',event.currentTarget, ' editForm: ',this.editForm);
+    if (this.editMode) {
+      if (event.currentTarget !== this.editForm) {
+        this.editDone();
+        this.editForm = event.currentTarget;
+        this.table.model.backup(this.editForm.id);
+        this.editForm.innerHTML = this.table.getEditForm(row.id);
+      } else if (event.target.value === 'trek-edit-save') {
+        event.target.classList.add('is-loading');
+        this.alterRow(this.table.getDataFields(this.editForm.id), this.editForm.id, () => {
+          event.target.classList.remove('is-loading');
+          this.editDone();
+        });
+      } else if (event.target.value === 'trek-edit-cancel') {
+        this.table.model.restore(this.editForm.id);
+        this.editDone();
+      }
+    }
   }
 
   // switch back to row
   editDone() {
-    const id = this.editForm.parentNode.id;
-    delete this.editForm;
-    this.table.replaceRow(id).addEventListener('click', this.edit);
+    console.log('editDone, id: ',this.editForm.id);
+    if (this.editForm !== undefined) {
+      this.editForm.innerHTML = this.table.getRow(this.editForm.id);
+      this.editForm = undefined;
+    }
+    console.log('editForm: ',this.editForm);
   }
 
-  // switch to edit mode where a click on a row turns the row into an editForm
-  enterEditMode(event) {
-    this.table.tableBody.children.forEach( (row) => {
-      row.addEventListener('click', this.edit);
-    });
-    this.table.dom.classList.add('is-hoverable');
-    event.srcElement
-      .removeEventListener('click', enterEditMode)
-      .addEventListener('click', exitEditMode)
-      .innerHTML = "Done";
+  toggleEditMode(editButton) {
+    if (this.editMode) {
+      this.editCancel();
+      this.table.dom.classList.remove('is-hoverable');
+      this.editMode = false;
+      editButton.textContent = "Edit";
+    } else {
+      this.table.dom.classList.add('is-hoverable');
+      this.editMode = true;
+      editButton.textContent = "Done";
+    }
   }
 
-  exitEditMode(event) {
-    this.table.tableBody.children.forEach( (row) => {
-      row.removeEventListener('click', this.edit);
-    });
-    this.table.dom.classList.remove('is-hoverable');
-    event.srcElement
-      .removeEventListener('click', exitEditMode)
-      .addEventListener('click', enterEditMode)
-      .innerHTML = "Edit";
-  }
 
   // general ajax settings and error handling
   ajaxRequest(data, onSuccess) {
-    console.log(this.ajaxUrl);
+    console.log('ajax request, url: ', this.ajaxUrl, ' data: ', data);
     $.ajax({
       url: this.ajaxUrl,
       method: 'POST',
       data: data,
       dataType: 'json',
       success: (response) => {
+        console.log('response: ', response);
         if (response.success) onSuccess(response);
         else console.log('Database error: '+response.errormsg);
       },
@@ -303,10 +342,10 @@ class TrekDatabase {
   }
 
   // select all visible columns of a table, if tableName is null default is set server-side
-  selectTable(event) {
-    if (typeof event !== 'undefined') {
+  selectTable(tabLink) {
+    if (typeof tabLink === 'object') {
       this.activeTab.classList.remove('is-active');
-      this.activeTab = event.srcElement;
+      this.activeTab = tabLink.parentNode;
       this.tableName = this.activeTab.getAttribute('data-table');
     }
     this.activeTab.classList.add('is-active');
@@ -334,72 +373,55 @@ class TrekDatabase {
   }
 
   // insert a new row
-  insertRow(rowData) {
+  insertRow(rowData, callback) {
     this.ajaxRequest(
       {operation: 'INSERT', tableName: this.tableName, lastUpdate: this.lastUpdate, data: [rowData]},
       (response) => {
         this.table.updateBody(response.data);
         this.lastUpdate = response.time;
+        if (typeof callback === 'function') callback();
       }
     );
   }
 
   // alter an existing row
-  alterRow(rowData) {
+  alterRow(rowData, rowId, callback) {
+    const data = {};
+    data[rowId] = rowData;
     this.ajaxRequest(
-      {operation: 'ALTER', tableName: this.tableName, lastUpdate: this.lastUpdate, data: [rowData]},
+      {operation: 'ALTER', tableName: this.tableName, lastUpdate: this.lastUpdate, data: data},
       (response) => {
         this.table.updateBody(response.data);
         this.lastUpdate = response.time;
+        if (typeof callback === 'function') callback();
       }
     );
   }
 
   // delete a row
-  deleteRow(rowId) {
+  deleteRow(rowId, callback) {
     this.ajaxRequest(
       {operation: 'DELETE', tableName: this.tableName, lastUpdate: this.lastUpdate, rows: [rowId]},
       (response) => {
         this.table.updateBody(response.data);
         this.lastUpdate = response.time;
+        if (typeof callback === 'function') callback();
       }
     );
   }
 
   // submit the insert form
-  insertSubmit() {
-    data = {}
-    this.insertForm.getElementsByTagName('input').forEach( (input) => {
-      data[input.getAttribute('data-col')] = input.value;
+  insertSubmit(submitButton) {
+    console.log('submitButton: ',submitButton);
+    submitButton.classList.add('is-loading');
+    this.insertRow(this.table.getDataFields(this.table.model.nextRow), () => {
+      submitButton.classList.remove('is-loading');
     });
-    this.insertRow(data);
-    this.insertReset();
   }
 
   // reset the insert form
   insertReset() {
-    this.insertForm.getElementsByTagName('input').forEach( (input) => {
-      input.value = "";
-    });
-  }
-
-  // submit the edit form
-  editSubmit() {
-    data = {id: this.editForm.parentNode.id};
-    this.editForm.getElementsByTagName('input').forEach( (input) => {
-      if (input.value !== "") {
-        data[input.getAttribute('data-col')] = input.value;
-      }
-    });
-    this.alterRow(data);
-    this.editDone();
-  }
-
-  // cancel editing this row
-  editCancel() {
-    const id = this.editForm.parentNode.id;
-    this.table.restore(id);
-    this.table.replaceRow(id);
+    this.insertForm.innerHTML = this.table.getInsertForm();
   }
 
   // recalculate all auto-columns in insert form (executed live during input)
@@ -417,7 +439,7 @@ class TrekDatabase {
 
   // recalculate all auto-columns in edit form (executed live during input)
   updateEditForm(origin) {
-    this.table.model.currentRow = this.editForm.parentNode.id;
+    this.table.model.currentRow = this.editForm.id;
     this.table.model[origin.parentNode.getAttribute('data-col')] = origin.value;
     this.table.columns.forEach( (col) => {
       switch (col.class) {

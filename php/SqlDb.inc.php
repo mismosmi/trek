@@ -9,7 +9,7 @@ class SqlDb {
      *
      * @const array(string)
      */
-    const META_COLUMNS = ["id", "timestamp", "deleted"];
+    const META_COLUMNS = ["id", "createdate", "modifieddate", "deleted"];
     /**
      * Array with necessary info for db connection
      *
@@ -31,6 +31,7 @@ class SqlDb {
     function __construct(array $dbinfo)
     {
         $this->info = $dbinfo;
+        $this->date = date("Y-m-d G:i:s");
     }
 
     /**
@@ -90,11 +91,13 @@ class SqlDb {
             $fk = "";
             if ($be == 'sqlite') {
                 $query .= "id INTEGER PRIMARY KEY, "
-                    ."timestamp DATETIME DEFAULT CURRENT_TIMESTAMP, "
+                    ."createdate DATETIME DEFAULT 0, "
+                    ."modifieddate DATETIME DEFAULT 0, "
                     ."deleted INTEGER DEFAULT 0";
             } elseif ($be == 'mysql') {
-                $query .= "id INT NOT NULL AUTO_INCREMENT, "
-                    ."timestamp TIMESTAMP, "
+                $query .= "id SERIAL, "
+                    ."createdate TIMESTAMP DEFAULT 0, "
+                    ."modifieddate TIMESTAMP DEFAULT 0, "
                     ."deleted BOOLEAN DEFAULT 0";
             }
             foreach ($columns as $col) {
@@ -107,20 +110,21 @@ class SqlDb {
                 case 3: // Foreign Key
                     if ($col['type'] === "FOREIGN KEY") {
                         $colName = "{$col['table']}_id";
-                        $query .= ", $colName INTEGER";
-                        $fk .= ", FOREIGN KEY ($colName) REFERENCES {$col['table']}($colName) ON DELETE SET NULL ON UPDATE CASCADE";
+                        $query .= ", $colName BIGINT UNSIGNED";
+                        $fk .= ", FOREIGN KEY ($colName) REFERENCES {$col['table']}(id) ON DELETE SET NULL ON UPDATE CASCADE";
                     }
                     break;
                 }
                 if (!empty($col['required']) && $col['required']) $query .= " NOT NULL";
             }
-            if ($be == 'mysql') $query .= ", PRIMARY KEY ({$name}_id)";
+            if ($be == 'mysql') $query .= ", PRIMARY KEY (id)";
             $query .= $fk.");";
 
             //echo $query."\n";
             $this->db->exec($query);
             return ['success' => True, 'info' => "Successfully created table \"$name\"."];
         } catch (PDOException $e) {
+            //echo $e->getMessage()."\n";
             return ['success' => False, 'errormsg' => 
                 "failed creating table $name: ".$e->getMessage()];
         }
@@ -143,7 +147,7 @@ class SqlDb {
             return ['success' => True];
         } catch (PDOException $e) {
             return ['success' => False, 'errormsg' =>
-                "failed dropping table $this->name: ".$e->getMessage()];
+                "failed dropping table $name: ".$e->getMessage()];
         }
     }
 
@@ -191,8 +195,8 @@ class SqlDb {
         if (!$connStatus['success']) return $connStatus;
 
         try {
-            $collist = [];
-            $paramlist = [];
+            $collist = ["createdate", "modifieddate"];
+            $paramlist = [":createdate", ":modifieddate"];
             foreach ($data as $name => $val) {
                 $collist[] = $name;
                 $paramlist[] = ":".$name;
@@ -200,6 +204,8 @@ class SqlDb {
             $stmt = $this->db->prepare("INSERT INTO $table "
                 ."(".join(",",$collist).") "
                 ."VALUES (".join(",",$paramlist).")");
+            $stmt->bindValue(":createdate", $this->date);
+            $stmt->bindValue(":modifieddate", $this->date);
             foreach ($data as $name => $val) {
                 $stmt->bindValue(":".$name, $val);
             }
@@ -225,16 +231,17 @@ class SqlDb {
         $connStatus = $this->dbConnect();
         if (!$connStatus['success']) return $connStatus;
         try {
-            $collist = [];
-            $paramlist = [];
-            $set = [];
+            //$collist = ["modifieddate"];
+            //$paramlist = [":modifieddate"];
+            $set = ["modifieddate = :modifieddate"];
             foreach ($data as $name => $val) {
                 $set[] = "$name = :$name";
             }
             $stmt = $this->db->prepare("UPDATE $table "
                 ."SET ".join(",",$set)." WHERE id=$row");
+            $stmt->bindValue(":modifieddate", $this->date);
             foreach ($data as $name => $val) {
-                $stmt->bindValue(":".$name, $val);
+                $stmt->bindValue(":$name", $val);
             }
             $stmt->execute();
             return ['success' => True];
@@ -354,10 +361,11 @@ class SqlDb {
 
             $columns = [
                 "{$thisTable['name']}.id", 
-                "{$thisTable['name']}.timestamp", 
+                "{$thisTable['name']}.createdate", 
+                "{$thisTable['name']}.modifieddate",
                 "{$thisTable['name']}.deleted"
             ];
-            $columnTypes = ['timestamp' => "TIMESTAMP"];
+            $columnTypes = ['createdate' => "TIMESTAMP", 'modifieddate' => "TIMESTAMP"];
 
             $js = "";
             foreach ($thisTable['columns'] as $column) {
@@ -368,11 +376,14 @@ class SqlDb {
             }
             foreach ($joinTables as $table) {
                 $columns[] = "{$table['name']}.id AS {$table['name']}_id";
-                $columns[] = "{$table['name']}.timestamp AS {$table['name']}_timestamp";
+                $columns[] = "{$table['name']}.createdate AS {$table['name']}_createdate";
+                $columns[] = "{$table['name']}.modifieddate AS {$table['name']}_modifieddate";
                 $columns[] = "{$table['name']}.deleted AS {$table['name']}_deleted";
                 $columnTypes["{$table['name']}_id"] = "INTEGER";
-                $columnTypes["{$table['name']}_timestamp"] = "TIMESTAMP";
-                $js .= " JOIN {$table['name']} ON {$thisTable['name']}.{$table['name']}_id = {$table['name']}.id";
+                $columnTypes["{$table['name']}_createdate"] = "TIMESTAMP";
+                $columnTypes["{$table['name']}_modifieddate"] = "TIMESTAMP";
+                $columnTypes["{$table['name']}_deleted"] = "BOOLEAN";
+                $js .= " LEFT JOIN {$table['name']} ON {$thisTable['name']}.{$table['name']}_id = {$table['name']}.id";
                 foreach ($table['columns'] as $column) {
                     if ($column['class'] === 1) {
                         $columns[] = "{$table['name']}.{$column['name']} AS {$table['name']}_{$column['name']}";
@@ -401,7 +412,7 @@ class SqlDb {
                 }
                 $data[$row['id']] = [];
                 foreach ($row as $key => $val) {
-                    if ($key === "id" || preg_match("/deleted$/", $key)) continue;
+                    if ($key === "id" || $key === "deleted") continue;
                     elseif (strtoupper(substr($columnTypes[$key], 0, 3)) === "INT") {
                         $data[$row['id']][$key] = intval($val);
                     } elseif (strtoupper(substr($columnTypes[$key], 0, 4)) === "BOOL") {

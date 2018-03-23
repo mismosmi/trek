@@ -2,7 +2,7 @@
     "name": "schemadb",
     "title": "Schema Database",
     "tables": {
-        "schema": {
+        "schematable": {
             "title": "Schema",
             "columns": [
                 {
@@ -11,15 +11,21 @@
                     "class": 0
                 },
                 {
-                    "name": "timestamp",
-                    "title": "Timestamp",
+                    "name": "createdate",
+                    "title": "Create Date",
+                    "class": 0
+                },
+                {
+                    "name": "modifieddate",
+                    "title": "Modified Date",
                     "class": 0
                 },
                 {
                     "name": "datacolumn",
                     "title": "Data Column",
                     "class": 1,
-                    "type": "VARCHAR(30)"
+                    "type": "VARCHAR(30)",
+                    "required": true
                 },
                 {
                     "name": "autocolumn",
@@ -29,7 +35,7 @@
                 },
                 {
                     "table": "foreigntable",
-                    "title": "Foreign key",
+                    "title": "Foreign Table ID",
                     "class": 3,
                     "type": "FOREIGN KEY"
                 }
@@ -38,6 +44,11 @@
         "foreigntable": {
             "title": "Foreign Table",
             "columns": [
+                {
+                    "name": "id",
+                    "title": "Foreign Table ID",
+                    "class": 0
+                },
                 {
                     "name": "foreigncolumn",
                     "title": "Foreign Column",
@@ -59,7 +70,7 @@
         }
     },
     "order": [
-        "schema",
+        "schematable",
         "foreigntable",
         "testtable"
     ]

@@ -38,7 +38,7 @@ class RestApi extends SqlDb
     public function __construct($dbName, $configFile = NULL)
     {
         $this->config = empty($configFile)
-            ? json_decode(file_get_contents(PHP_ROOT.'config.php'), true)
+            ? json_decode(file_get_contents(PHP_ROOT.'config.json'), true)
             : json_decode(file_get_contents(PHP_ROOT.$configFile), true);
 
 
@@ -127,25 +127,21 @@ class RestApi extends SqlDb
             }
             $where = empty($postData['lastUpdate']) 
                 ? ["{$thisTable['name']}.deleted = 0"]
-                : ["{$thisTable['name']}.timestamp > {$postData['lastUpdate']}"];
+                : ["{$thisTable['name']}.modifieddate >= {$postData['lastUpdate']}"];
 
             $ret = $this->dbSelectJoin($thisTable, $joinTables, $where);
             if (!$ret['success']) {
                 if (empty($postData['lastUpdate'])) {
-                    $create = $this->dbCreateTable($thisTable['name'], $this->dbInfo['tables'][$thisTable['name']]['columns']);
+                    $createmsg = "";
                     foreach ($joinTables as $table) {
-                        $createsub = $this->dbCreateTable($table['name'], $this->dbInfo['tables'][$table['name']]['columns']);
-                        if ($createsub['success']) $create['info'] .= "\n".$createsub['info'];
-                        else {
-                            $create['success'] = false;
-                            $create['errormsg'] .= "\n".$createsub['errormsg'];
-                        }
+                        $create = $this->dbCreateTable($table['name'], $this->dbInfo['tables'][$table['name']]['columns']);
+                        $createmsg .= ($create['success'] ? $create['info'] : $create['errormsg'])."\n";
                     }
-                    if ($create['success']) {
-                        $ret = $this->dbSelectJoin($thisTable, $joinTables);
-                        $ret['info'] = $create['info'];
-                    }
-                    else $ret['errormsg'] .= "\n".$create['errormsg'];
+                    $create = $this->dbCreateTable($thisTable['name'], $this->dbInfo['tables'][$thisTable['name']]['columns']);
+                    $createmsg .= ($create['success'] ? $create['info'] : $create['errormsg']);
+                    $ret = $this->dbSelectJoin($thisTable, $joinTables);
+                    if ($ret['success']) $ret['info'] = $createmsg;
+                    else $ret['errormsg'] .= "\n".$createmsg;
                 } else $ret['errormsg'] = 
                     "Something went wrong: trying to refresh table \"{$thisTable['name']}\"";
             }

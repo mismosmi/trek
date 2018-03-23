@@ -4,7 +4,7 @@
 define('PHP_ROOT', '../');
 define('HTML_ROOT', '../');
 define('HTML_FILE', basename(__FILE__));
-require_once('php/Database.inc.php');
+require_once(PHP_ROOT.'php/Database.inc.php');
 $db = new Database($_GET['db']);
 echo $db->getHead();
 ?>
@@ -17,10 +17,10 @@ echo $db->getHead();
 </section>
 <section class="section">
  <div class="container">
-<?php echo $db->getTableNav(); ?>
-  <div class="buttons has-addons id-pulled-right">
-   <span class="button is-primary">Edit</span>
+  <div class="buttons has-addons is-pulled-right">
+   <span class="button is-primary" onclick="Trek.toggleEditMode(this)">Edit</span>
   </div>
+<?php echo $db->getDbNav(); ?>
  </div>
  <div class="container">
 <?php echo $db->getTable(); ?>
