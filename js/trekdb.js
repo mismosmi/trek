@@ -63,7 +63,7 @@ class TrekTableModel {
     });
 
     // create empty row to store values from insertForm
-    this.insertRow = {};
+    this.formRow = {};
 
   }
 
@@ -98,7 +98,9 @@ class TrekTableModel {
 
   // copy a row to editRow in order to edit non-destructively
   edit(id) {
-    this.editRow = Object.assign({}, this[id])
+    if (id === 'insertRow') this.formRow = {};
+    else this.formRow = Object.assign({}, this[id])
+    this.currentId = id;
   }
 
 }
@@ -123,6 +125,7 @@ class TrekTableView {
 
   // generate row formatted as tr
   getRow(id) {
+    if (id === 'insertRow') return 'add new row'; // TODO make this span all the columns
     let tr = '';
     this.model.currentId = id;
     this.columns.forEach( (col) => {
@@ -132,9 +135,9 @@ class TrekTableView {
     return tr;
   }
 
-  // return only data and foreign key fields for ajax requests
-  getDataFields(rowId) {
-    this.model.currentId = rowId;
+  // return form data
+  getFormData() {
+    this.model.currentId = 'formRow';
     const data = {};
     this.columns.forEach( (col) => {
       switch (col.class) {
@@ -149,8 +152,6 @@ class TrekTableView {
     return data;
   }
           
-
-
   // generate table head
   getHeadRow() {
     let tr = '';
@@ -161,64 +162,37 @@ class TrekTableView {
     return tr;
   }
 
-  // generate insert form
-  getInsertForm() {
+  // generate form
+  getForm() {
     let tr = '';
     this.columns.forEach( (col) => {
+      tr += ``;
       switch (col.class) {
         case 1: // Data Column
         case 3: // Foreign Key
-          tr += `<th data-col="${col.name}" class="control"><input class="input" type="text" placeholder="${col.title}" oninput="Trek.updateInsertForm(this)"></th>`;
+          tr += `<td data-col="${col.name}" class="control"><input class="input" type="text" placeholder="${this.model.formRow[col.name] ? this.model.formRow[col.name] : col.title}" oninput="Trek.updateForm(this)"></td>`;
           break;
         case 2: // Auto Column
-          tr += `<th data-col="${col.name}">${this.model[col.name]}</th>`;
+          tr += `<td data-col="${col.name}">${this.model[col.name]}</td>`;
           break;
         default:
-          tr += `<th data-col="${col.name}"></th>`;
+          tr += `<td data-col="${col.name}"></td>`;
       }
     });
-    tr += '<th><div class="buttons has-addons"><span id="trek-insert-save" class="button is-link" onclick="Trek.insertSubmit(this)">Save</span><span id="trek-insert-reset" class="button is-text" onclick="Trek.insertReset()">Reset</span></div></th>';
-    return tr;
+    console.log('getForm, formRow:',Object.keys(this.model.formRow));
+    tr += `<td><div class="buttons has-addons"><span id="trek-save" class="button is-link">Save</span><span id="trek-cancel" class="button">Cancel</span>${Object.keys(this.model.formRow).length === 0 ? '' : '<span id="trek-delete" class="button">Delete</span>'}</div></td>`;
+    return tr
   }
 
-  // generate alter form
-  getEditForm(id) {
-    this.model.currentId = id;
-    let tr = '';
-    this.columns.forEach( (col) => {
-      switch (col.class) {
-        case 1: // Data Column
-        case 3: // Foreign Key
-          tr += `<td data-col="${col.name}" class="control"><input class="input" type="text" placeholder="${this.model[col.name]}" oninput="Trek.updateEditForm(this)"></td>`;
-          break;
-        default:
-          tr += `<td data-col="${col.name}">${this.model[col.name]}</td>`
-    }
+  appendRow(id) {
+    const tr = document.createElement('tr');
+    tr.id = id;
+    tr.innerHTML = this.getRow(id);
+    tr.addEventListener('click', (event) => {
+      Trek.editThis(event);
     });
-    tr += '<td><div class="buttons has-addons"><span id="trek-edit-save" class="button is-link">Save</span><span id="trek-edit-cancel" class="button">Cancel</span><span id="trek-edit-delete" class="button">Delete</span></div></td></form>';
+    this.body.appendChild(tr);
     return tr;
-  }
-
-  // generate table head and replace current contents
-  replaceHead() {
-    this.head.innerHTML = `<tr>${this.getHeadRow()}</tr><tr id="insertform">${this.getInsertForm()}</tr>`;
-  }
-
-  // generate table body and replace current contents
-  replaceBody() {
-    this.body.innerHTML = '';
-    for (var index = this.model.getMaxIndex(); index > 0; index--) {
-      console.log('replaceBody loop');
-      if (this.model[index] !== undefined) {
-        const tr = document.createElement('tr');
-        tr.id = index;
-        tr.innerHTML = this.getRow(index);
-        tr.addEventListener('click', (event) => {
-          Trek.editThis(event);
-        });
-        this.body.appendChild(tr);
-      }
-    }
   }
 
   // update table body with changed rows
@@ -290,42 +264,55 @@ class TrekDatabase {
 
   // switch row to edit form
   editThis(event) {
-    if (this.editMode) {
+    if (this.editMode || event.currentTarget.id === 'insertRow') {
       // if we click on a row and that row is not already the edit-form
-      if (event.currentTarget !== this.editForm) {
+      if (event.currentTarget !== this.form) {
         // first close any other edit-form
         this.editDone();
         // this row is becoming the new edit-form
-        this.editForm = event.currentTarget;
+        this.form = event.currentTarget;
         // save the column we clicked on to focus it later
         const targetColumn = event.target.getAttribute('data-col');
-        // copy row values to editRow
-        this.table.model.edit(this.editForm.id);
+        // copy row values to formRow and set currentId
+        this.table.model.edit(this.form.id);
         // replace row content with edit-form
-        this.editForm.innerHTML = this.table.getEditForm(this.editForm.id);
+        this.form.innerHTML = this.table.getForm();
         // find input in the right column if there is one and focus it
-        const input = this.editForm.querySelector('td[data-col="'+targetColumn+'"] input');
+        const input = this.form.querySelector('td[data-col="'+targetColumn+'"] input');
         if (input !== null) input.focus();
         // otherwise focus first input in this row
-        else this.editForm.querySelector('input').focus();
+        else this.form.querySelector('input').focus();
+        // TODO maybe add a select all if value != '' here
       // if we click the save-button
-      } else if (event.target.id === 'trek-edit-save') {
+      } else if (event.target.id === 'trek-save') {
         event.target.classList.add('is-loading');
-        this.alterRow(this.table.getDataFields('editRow'), this.editForm.id, () => {
+        if (this.form.id === 'insertRow') {
+          const onSuccess = () => {
+            event.target.classList.remove('is-loading');
+            this.editDone();
+          };
+          const onError = () => {
+            event.target.classList.remove('is-loading');
+            this.table.model.edit(this.form.id);
+            this.form.innerHTML = this.table.getForm(this.form.id);
+          };
+          this.insertRow(this.table.getFormData(), () => {
+
+        this.alterRow(this.table.getFormData(), this.form.id, () => {
           event.target.classList.remove('is-loading');
           this.editDone();
         }, () => {
           event.target.classList.remove('is-loading');
-          this.table.model.edit(this.editForm.id);
-          this.editForm.innerHTML = this.table.getEditForm(this.editForm.id);
+          this.table.model.edit(this.form.id);
+          this.form.innerHTML = this.table.getEditForm(this.form.id);
         });
       // if we click the cancel-button
-      } else if (event.target.id === 'trek-edit-cancel') {
+      } else if (event.target.id === 'trek-cancel') {
         this.editDone();
-      } else if (event.target.id === 'trek-edit-delete') {
+      } else if (event.target.id === 'trek-delete') {
         event.target.classList.add('id-loading');
-        this.deleteRow(this.editForm.id, () => {
-          this.editForm = undefined;
+        this.deleteRow(this.form.id, () => {
+          this.form = undefined;
           event.target.classList.remove('is-loading');
         }, () => {
           event.target.classList.remove('is-loading');
@@ -336,9 +323,9 @@ class TrekDatabase {
 
   // switch back to row
   editDone() {
-    if (this.editForm !== undefined) {
-      this.editForm.innerHTML = this.table.getRow(this.editForm.id);
-      this.editForm = undefined;
+    if (this.form !== undefined) {
+      this.form.innerHTML = this.table.getRow(this.form.id);
+      this.form = undefined;
     }
   }
 
@@ -395,10 +382,15 @@ class TrekDatabase {
       {operation: 'SELECT', tableName: this.tableName},
       (response) => {
         this.table = new TrekTableView(this.tableColumns[this.tableName], response.data);
-        this.table.replaceHead();
-        this.table.replaceBody();
+        this.table.head.innerHTML = `<tr>${this.table.getHeadRow()}</tr>`;
+        this.table.body.innerHTML = '';
+        this.insertRow = this.table.appendRow('insertRow');
+        for (var index = this.table.model.getMaxIndex(); index > 0; index--) {
+          if (this.table.model[index] !== undefined) {
+            this.table.appendRow(index);
+          }
+        }
         this.lastUpdate = response.time;
-        this.insertForm = document.getElementById('insertform');
       }
     );
   }
@@ -472,28 +464,14 @@ class TrekDatabase {
     this.insertForm.innerHTML = this.table.getInsertForm();
   }
 
-  // recalculate all auto-columns in insert form (executed live during input)
-  updateInsertForm(origin) {
-    this.table.model.currentId = 'insertRow';
+  // recalculate all auto-columns in form (executed live during input)
+  updateForm(origin) {
+    this.table.model.currentId = 'formRow';
     this.table.model[origin.parentNode.getAttribute('data-col')] = origin.value;
     this.table.columns.forEach( (col) => {
       switch (col.class) {
         case 2: // Auto Column
-          this.insertForm.querySelector('th[data-col="'+col.name+'"]')
-            .textContent = this.table.model[col.name];
-      }
-    });
-  }
-
-  // recalculate all auto-columns in edit form (executed live during input)
-  updateEditForm(origin) {
-    this.table.model.currentId = 'editRow';
-    this.table.model[origin.parentNode.getAttribute('data-col')] = origin.value;
-    this.table.columns.forEach( (col) => {
-      switch (col.class) {
-        case 2: // Auto Column
-          this.editForm.querySelector('td[data-col="'+col.name+'"]')
-            .textContent = this.table.model[col.name];
+          this.form.querySelector('td[data-col="'+col.name+'"]').textContent = this.table.model[col.name];
       }
     });
   }
