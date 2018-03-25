@@ -31,7 +31,11 @@ class TrekTableModel {
         case 1:
           Object.defineProperty(this, col.name, {
             get: () => {
-              return this[this.currentId][col.name];
+              if (this.hasOwnProperty(this.currentId)) {
+                return this[this.currentId][col.name];
+              } else {
+                return null;
+              }
             },
             set: (value) => {
               this[this.currentId][col.name] = value;
@@ -104,8 +108,8 @@ class TrekTableView {
   // construct from data given in ajax payload
   constructor(tableColumns, tableData) {
     this.dom = document.getElementById('trek-table');
-    this.tableBody = this.dom.getElementsByTagName('tbody')[0];
-    this.tableHead = this.dom.getElementsByTagName('thead')[0];
+    this.body = this.dom.getElementsByTagName('tbody')[0];
+    this.head = this.dom.getElementsByTagName('thead')[0];
     this.columns = tableColumns;
     this.model = new TrekTableModel(tableColumns, tableData);
   }
@@ -191,19 +195,20 @@ class TrekTableView {
           tr += `<td data-col="${col.name}">${this.model[col.name]}</td>`
     }
     });
-    tr += '<td><div class="buttons has-addons"><span id="trek-edit-save" class="button is-link">Save</span><span id="trek-edit-cancel" class="button is-text">Cancel</span></div></td></form>';
+    tr += '<td><div class="buttons has-addons"><span id="trek-edit-save" class="button is-link">Save</span><span id="trek-edit-cancel" class="button">Cancel</span><span id="trek-edit-delete" class="button">Delete</span></div></td></form>';
     return tr;
   }
 
   // generate table head and replace current contents
   replaceHead() {
-    this.tableHead.innerHTML = `<tr>${this.getHeadRow()}</tr><tr id="insertform">${this.getInsertForm()}</tr>`;
+    this.head.innerHTML = `<tr>${this.getHeadRow()}</tr><tr id="insertform">${this.getInsertForm()}</tr>`;
   }
 
   // generate table body and replace current contents
   replaceBody() {
-    this.tableBody.innerHTML = '';
+    this.body.innerHTML = '';
     for (var index = this.model.getMaxIndex(); index > 0; index--) {
+      console.log('replaceBody loop');
       if (this.model[index] !== undefined) {
         const tr = document.createElement('tr');
         tr.id = index;
@@ -211,7 +216,7 @@ class TrekTableView {
         tr.addEventListener('click', (event) => {
           Trek.editThis(event);
         });
-        this.tableBody.appendChild(tr);
+        this.body.appendChild(tr);
       }
     }
   }
@@ -220,21 +225,25 @@ class TrekTableView {
   updateBody(tableData) {
     Object.keys(tableData).forEach( (id) => {
       let tr = document.getElementById(id);
-      if (tr === null && !tableData[id].deleted) {
-        this.model[id] = tableData[id];
-        tr = document.createElement('tr');
-        tr.innerHTML = this.getRow(id);
-        tr.id = id;
-        tr.addEventListener('click', (event) => {
-          Trek.editThis(event);
-        });
-        this.tableBody.insertBefore(tr, this.tableBody.children[0]);
-      } else if (tableData[id].deleted) {
-        this.model[id] = undefined;
-        this.tableBody.removeChild(tr);
+      if (tr === null) {
+        if (!tableData[id].deleted) {
+          this.model[id] = tableData[id];
+          tr = document.createElement('tr');
+          tr.innerHTML = this.getRow(id);
+          tr.id = id;
+          tr.addEventListener('click', (event) => {
+            Trek.editThis(event);
+          });
+          this.body.insertBefore(tr, this.body.children[0]);
+        }
       } else {
-        this.model[id] = tableData[id];
-        tr.innerHTML = this.getRow(id);
+        if (tableData[id].deleted) {
+          this.model[id] = undefined;
+          this.body.removeChild(tr);
+        } else {
+          this.model[id] = tableData[id];
+          tr.innerHTML = this.getRow(id);
+        }
       }
     });
   }
@@ -313,6 +322,14 @@ class TrekDatabase {
       // if we click the cancel-button
       } else if (event.target.id === 'trek-edit-cancel') {
         this.editDone();
+      } else if (event.target.id === 'trek-edit-delete') {
+        event.target.classList.add('id-loading');
+        this.deleteRow(this.editForm.id, () => {
+          this.editForm = undefined;
+          event.target.classList.remove('is-loading');
+        }, () => {
+          event.target.classList.remove('is-loading');
+        });
       }
     }
   }
@@ -426,13 +443,15 @@ class TrekDatabase {
   }
 
   // delete a row
-  deleteRow(rowId) {
+  deleteRow(rowId, callback, onError) {
     this.ajaxRequest(
       {operation: 'DELETE', tableName: this.tableName, lastUpdate: this.lastUpdate, rows: [rowId]},
       (response) => {
         this.table.updateBody(response.data);
         this.lastUpdate = response.time;
-      }
+        callback();
+      },
+      onError
     );
   }
 
