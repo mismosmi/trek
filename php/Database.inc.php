@@ -64,7 +64,7 @@ class Database extends Page
      */
     public function getTable()
     {
-        return "<form id=\"trek-form\" onsubmit=\"return false;\"><table class=\"table\" id=\"trek-table\"><thead></thead><tbody></tbody></table></form>\n";
+        return "<form id=\"trek-form\" onsubmit=\"Trek.submit(this)\"><table class=\"table\" id=\"trek-table\"><thead></thead><tbody></tbody></table></form>\n";
     }
 
     /**

@@ -248,8 +248,6 @@ class TrekDatabase {
   
   // request entry table from database
   constructor(settings) {
-    // set default value for ajaxUrl
-    this.ajaxUrl = location.origin+'/php/api.php';
     // copy passed-in settings
     Object.assign(this, settings);
     // find active tab to reduce DOM calls for tab switching
@@ -365,7 +363,7 @@ class TrekDatabase {
     });
   }
 
-  // select all visible columns of a table, if tableName is null default is set server-side
+  // select all visible columns of a table
   selectTable(tabLink) {
     if (typeof tabLink === 'object') {
       this.activeTab.classList.remove('is-active');

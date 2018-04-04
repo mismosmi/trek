@@ -17,18 +17,18 @@ class DatabaseTest extends TestCase
 
     public function testTable()
     {
-        $result = '<table class="table" id="trek-table"><thead></thead><tbody></tbody></table>';
+        $result = "<form id=\"trek-form\" onsubmit=\"Trek.submit(this)\"><table class=\"table\" id=\"trek-table\"><thead></thead><tbody></tbody></table></form>\n";
         $this->assertEquals($result, $this->db->getTable());
     }
 
     public function testDbNav()
     {
         $result = 
-            "<div class=\"tabs\" id=\"trek-table-nav\">\n"
+            "<div class=\"tabs\" id=\"trek-db-nav\">\n"
             ." <ul>\n"
-            ."  <li data-table=\"schema\" onclick=\"Trek.selectTable(this)\">Schema</li>\n"
-            ."  <li data-table=\"foreigntable\" onclick=\"Trek.selectTable(this)\">Foreign Table</li>\n"
-            ."  <li data-table=\"testtable\" onclick=\"Trek.selectTable(this)\">Test Table</li>\n"
+            ."  <li class=\"is-active\" data-table=\"schematable\"><a onclick=\"Trek.selectTable(this)\">Schema</a></li>\n"
+            ."  <li data-table=\"foreigntable\"><a onclick=\"Trek.selectTable(this)\">Foreign Table</a></li>\n"
+            ."  <li data-table=\"testtable\"><a onclick=\"Trek.selectTable(this)\">Test Table</a></li>\n"
             ." </ul>\n"
             ."</div>\n";
         $this->assertEquals($result, $this->db->getDbNav());
