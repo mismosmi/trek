@@ -102,16 +102,17 @@ class TrekTableModel {
 
   // copy a row to buffer in order to edit non-destructively
   edit(id) {
-    if (id === 'new') {
-      this.buffer = {};
-    } else {
-      this.buffer = Object.assign({}, this[id]);
-    }
+    if (id === 'new') this.buffer = {};
+    else this.buffer = Object.assign({}, this[id]);
     this.currentId = id;
   }
 
   editDone() {
     this.buffer = undefined;
+  }
+
+  bufferChanged() {
+    return this.buffer = this[this.currentId];
   }
 
 }
@@ -125,7 +126,13 @@ class TrekTableView {
     this.head = this.dom.getElementsByTagName('thead')[0];
     this.columns = tableColumns;
     this.model = new TrekTableModel(tableColumns, tableData);
-    this.newRowContent = `<td colspan="${tableColumns.length + 1}"><div class="has-text-centered has-background-success">New Entry</div></td>`;
+    // generate "new"-row
+    this.newRow = document.createElement('tr');
+    this.newRow.id = 'new';
+    this.newRow.innerHTML = `<td colspan="${this.columns.length + 1}"><div class="columns is-centered"><div class="column is-6"><span class="button is-fullwidth is-primary">New Entry</span></div></div></td>`;
+    this.newRow.addEventListener('click', (event) => {
+      Trek.editThis(event)
+    });
   }
 
   // get column by name
@@ -139,15 +146,11 @@ class TrekTableView {
   getRow(id) {
     const tr = document.createElement('tr');
     tr.id = id;
-    if (id === 'new') {
-      tr.innerHTML = `<td colspan="${this.columns.length + 1}"><div class="has-text-centered has-background-success">New Entry</div></td>`;
-    } else {
-      this.model.currentId = id;
-      this.columns.forEach( (col) => {
-        tr.innerHTML += `<td data-col="${col.name}">${this.model[col.name]}</td>`;
-      });
-      tr.innerHTML += '<td></td>'; // empty td for control column
-    }
+    this.model.currentId = id;
+    this.columns.forEach( (col) => {
+      tr.innerHTML += `<td data-col="${col.name}">${this.model[col.name]}</td>`;
+    });
+    tr.innerHTML += '<td></td>'; // empty td for control column
     tr.addEventListener('click', (event) => {
       Trek.editThis(event)
     });
@@ -194,13 +197,9 @@ class TrekTableView {
           // add an input here
           tr.innerHTML += `<td data-col="${col.name}" class="control"><input class="input" type="text" placeholder="${col.title}" value="${this.model[col.name] ? this.model[col.name] : ''}" oninput="Trek.updateForm(this)"></td>`;
           break;
-        case 2: // Auto Column
-          // add a simple column containing the current value
-          tr.innerHTML += `<td data-col="${col.name}">${this.model[col.name]}</td>`;
-          break;
         default:
           // add an empty column as placeholder
-          tr.innerHTML += `<td data-col="${col.name}"></td>`;
+          tr.innerHTML += `<td data-col="${col.name}">${this.model[col.name] ? this.model[col.name] : ''}</td>`;
       }
     });
     // i think we won't need all of this following stuff
@@ -224,7 +223,11 @@ class TrekTableView {
     //controlTd.append(cancelButton);
     //tr.append(controlTd);
 
-    tr.innerHTML += `<td class="buttons has-addons"><span class="button is-link" onclick="Trek.saveThis(this)">Save</span><span class="button" onclick="Trek.cancelThis(this)">Cancel</span></td>`;
+    const controlTd = document.createElement('td');
+    controlTd.classList.add('buttons','has-addons');
+    controlTd.innerHTML = `<span class="button is-link" onclick="Trek.saveThis(this)">Save</span><span class="button" onclick="Trek.cancelThis(this)">Cancel</span>`;
+    if (id !== 'new') controlTd.innerHTML += `<span class="button is-danger" onclick="Trek.deleteThis(this)">Delete</span>`
+    tr.appendChild(controlTd);
     return tr;
   }
 
@@ -293,7 +296,7 @@ class TrekDatabase {
   editThis(event) {
     if (this.editMode || event.currentTarget.id === 'new') {
       // first close any other active form
-      this.editDone();
+      this.cancelThis();
       // save the column we clicked on to focus it later
       const targetColumn = event.target.getAttribute('data-col');
       // copy row values to buffer
@@ -314,46 +317,70 @@ class TrekDatabase {
 
   saveThis(target) {
     target.classList.add('is-loading');
-    const onSuccess = () => {
-      target.classList.remove('is-loading');
-      this.editDone();
-    };
-    const onError = () => {
-      target.classList.remove('is-loading');
-      this.formRow.classList.add('has-background-danger');
-    };
     if (this.formRow.id === 'new') {
       this.insertRow(
         this.table.getFormData(), 
-        onSuccess,
-        onError
+        () => { // onSuccess
+          target.classList.remove('is-loading');
+          this.table.body.replaceChild(this.table.newRow, this.formRow);
+          this.formRow = undefined;
+        },
+        () => { // onError
+          target.classList.remove('is-loading');
+          this.formRow.classList.add('is-danger');
+        }
       );
     } else {
       this.alterRow(
         this.table.getFormData(), 
         this.formRow.id, 
-        onSuccess,
-        onError
-      )
+        () => { // onSuccess
+          target.classList.remove('is-loading');
+          this.formRow = undefined;
+        },
+        () => { // onError
+          target.classList.remove('is-loading');
+          this.formRow.classList.add('is-danger');
+        }
+      );
     }
   }
 
   cancelThis(target) {
     this.table.model.editDone();
-    this.editDone();
-  }
-
-  // switch back to row
-  editDone() {
     if (this.formRow !== undefined) {
-      this.table.body.replaceChild(this.table.getRow(this.formRow.id), this.formRow);
+      if (this.formRow.id === 'new') this.table.body.replaceChild(this.table.newRow, this.formRow);
+      else this.table.body.replaceChild(this.table.getRow(this.formRow.id), this.formRow);
       this.formRow = undefined;
     }
   }
 
+  deleteThis(target) {
+    target.classList.add('is-loading');
+    const onSuccess = () => {
+      target.classList.remove('is-loading');
+      this.formRow = undefined;
+    };
+    const onError = () => {
+      target.classList.remove('is-loading');
+      this.formRow.classList.add('has-background-danger');
+    };
+    this.deleteRow(
+      this.formRow.id,
+      () => { // onSuccess
+        target.classList.remove('is-loading');
+        this.formRow = undefined;
+      },
+      () => { // onError
+        target.classList.remove('is-loading');
+        this.formRow.classList.add('has-background-danger');
+      }
+    );
+  }
+
   exitEditMode() {
     if (this.editMode) {
-      this.editDone();
+      this.cancelThis();
       this.table.dom.classList.remove('is-hoverable');
       this.editMode = false;
       this.editButton.textContent = "Edit";
@@ -378,6 +405,9 @@ class TrekDatabase {
             .textContent = this.table.model[col.name];
       }
     });
+    // enable or disable save-button depending on whether data has been altered
+    //if (this.table.model.buffer === this[this.currentId] || this.table.model.buffer === {}) this.saveButton.disabled = true;
+    //else this.saveButton.disabled = false;
   }
 
   // general ajax settings and error handling
@@ -392,12 +422,12 @@ class TrekDatabase {
         console.log('response: ', response);
         if (response.success) onSuccess(response);
         else {
-          alert('Database error: '+response.errormsg);
+          this.error('Database error: '+response.errormsg);
           if (typeof onError === 'function') onError();
         }
       },
       error: (xhr, ajaxOptions, thrownError) => {
-        alert('Ajax error: '+xhr.status+'\n'+thrownError);
+        this.error('Ajax error: '+xhr.status+'\n'+thrownError);
         if (typeof onError === 'function') onError();
       }
     });
@@ -419,7 +449,7 @@ class TrekDatabase {
         this.table.head.innerHTML = '';
         this.table.head.appendChild(this.table.getHeadRow());
         this.table.body.innerHTML = '';
-        this.table.body.appendChild(this.table.getRow('new'));
+        this.table.body.appendChild(this.table.newRow);
         for (var index = this.table.model.getMaxIndex(); index > 0; index--) {
           if (this.table.model[index] !== undefined) {
             this.table.body.appendChild(this.table.getRow(index));
@@ -474,13 +504,15 @@ class TrekDatabase {
   }
 
   // delete a row
-  deleteRow(rowId) {
+  deleteRow(rowId, onSuccess, onError) {
     this.ajaxRequest(
       {operation: 'DELETE', tableName: this.tableName, lastUpdate: this.lastUpdate, rows: [rowId]},
       (response) => {
-        this.table.updateBody(response.data);
+        this.table.update(response.data);
         this.lastUpdate = response.time;
-      }
+        onSuccess();
+      },
+      onError
     );
   }
 
