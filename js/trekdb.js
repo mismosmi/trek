@@ -51,7 +51,7 @@ class TrekTableModel {
         case 3: // Foreign Key
           Object.defineProperty(this, col.name, {
             get: () => {
-              if (this.buffer !== undefined) return (this.buffer[col.name]) ? this.buffer[col.name : '';
+              if (this.buffer !== undefined) return (this.buffer[col.name]) ? this.buffer[col.name] : '';
               return (this[this.currentId][col.name]) ? this[this.currentId][col.name] : '';
             },
             set: (value) => {
@@ -59,8 +59,16 @@ class TrekTableModel {
             }
           });
           break;
+        case 4: // SQL Column
+          Object.defineProperty(this, col.name, {
+            get: () => {
+              if (this.buffer !== undefined) return this.buffer[col.name];
+              return this[this.currentId][col.name];
+            }
+          });
       }
     });
+
   }
 
   // find largest numerical index
@@ -117,6 +125,7 @@ class TrekTableView {
     this.head = this.dom.getElementsByTagName('thead')[0];
     this.columns = tableColumns;
     this.model = new TrekTableModel(tableColumns, tableData);
+    this.newRowContent = `<td colspan="${tableColumns.length + 1}"><div class="has-text-centered has-background-success">New Entry</div></td>`;
   }
 
   // get column by name
@@ -130,11 +139,15 @@ class TrekTableView {
   getRow(id) {
     const tr = document.createElement('tr');
     tr.id = id;
-    this.model.currentId = id;
-    this.columns.forEach( (col) => {
-      tr.innerHTML += `<td data-col="${col.name}">${this.model[col.name]}</td>`;
-    });
-    tr.innerHTML += '<td></td>'; // empty td for control column
+    if (id === 'new') {
+      tr.innerHTML = `<td colspan="${this.columns.length + 1}"><div class="has-text-centered has-background-success">New Entry</div></td>`;
+    } else {
+      this.model.currentId = id;
+      this.columns.forEach( (col) => {
+        tr.innerHTML += `<td data-col="${col.name}">${this.model[col.name]}</td>`;
+      });
+      tr.innerHTML += '<td></td>'; // empty td for control column
+    }
     tr.addEventListener('click', (event) => {
       Trek.editThis(event)
     });
@@ -179,7 +192,7 @@ class TrekTableView {
         case 1: // Data Column
         case 3: // Foreign Key
           // add an input here
-          tr.innerHTML += `<td data-col="${col.name}" class="control"><input class="input" type="text" placeholder="${col.title}" value="${this.model[col.name]}" oninput="Trek.updateForm(this)"></td>`;
+          tr.innerHTML += `<td data-col="${col.name}" class="control"><input class="input" type="text" placeholder="${col.title}" value="${this.model[col.name] ? this.model[col.name] : ''}" oninput="Trek.updateForm(this)"></td>`;
           break;
         case 2: // Auto Column
           // add a simple column containing the current value
@@ -219,24 +232,26 @@ class TrekTableView {
   update(tableData) {
     Object.keys(tableData).forEach( (id) => {
       const tr = document.getElementById(id);
-      if (tr === null && !tableData[id].deleted) {
-        this.model[id] = tableData[id];
-        let nextSmallerId = id - 1;
-        while (this.model[nextSmallerId] === undefined && nextSmallerId > 0) {
-          nextSmallerId--;
+      if (tableData[id].deleted) {
+        if (this.model[id] !== undefined) {
+          this.model[id] = undefined;
+          this.body.removeChild(tr);
         }
-        if (nextSmallerId === 0) this.table.body.appendChild(this.table.getRow(id));
-        this.body.insertBefore(this.getRow(id), document.getElementById(nextSmallerId));
-      } else if (tableData[id].deleted) {
-        this.model[id] = undefined;
-        this.body.removeChild(tr);
       } else {
         this.model[id] = tableData[id];
-        this.body.replaceChild(this.getRow(id), tr);
+        if (tr === null) {
+          let nextSmallerId = id - 1;
+          while (this.model[nextSmallerId] === undefined && nextSmallerId > 0) {
+            nextSmallerId--;
+          }
+          if (nextSmallerId === 0) this.table.body.appendChild(this.table.getRow(id));
+          else this.body.insertBefore(this.getRow(id), document.getElementById(nextSmallerId));
+        } else {
+          this.body.replaceChild(this.getRow(id), tr);
+        }
       }
     });
   }
-
 
 }
 
@@ -276,22 +291,24 @@ class TrekDatabase {
 
   // trigger event when row is clicked
   editThis(event) {
-    if (this.editMode) {
+    if (this.editMode || event.currentTarget.id === 'new') {
       // first close any other active form
       this.editDone();
-      // this row is becoming the new edit-form
-      this.formRow = event.currentTarget;
       // save the column we clicked on to focus it later
       const targetColumn = event.target.getAttribute('data-col');
       // copy row values to buffer
-      this.table.model.edit(this.formRow.id);
+      this.table.model.edit(event.currentTarget.id);
       // replace row content with edit-form
-      this.table.body.replaceChild(this.table.getFormRow(this.formRow.id), this.formRow);
+      this.formRow = this.table.getFormRow(event.currentTarget.id);
+      this.table.body.replaceChild(this.formRow, event.currentTarget);
       // find input in the right column if there is one and focus it
-      const input = this.formRow.querySelector('td[data-col="'+targetColumn+'"] input');
+      let input = this.formRow.querySelector('td[data-col="'+targetColumn+'"] input');
       if (input !== null) input.focus();
       // otherwise focus first input in this row
-      else this.editForm.querySelector('input').focus();
+      else {
+        input = this.formRow.querySelector('input');
+        if (input !== null) input.focus();
+      }
     }
   }
 
@@ -322,12 +339,12 @@ class TrekDatabase {
   }
 
   cancelThis(target) {
+    this.table.model.editDone();
     this.editDone();
   }
 
   // switch back to row
   editDone() {
-    this.table.model.editDone();
     if (this.formRow !== undefined) {
       this.table.body.replaceChild(this.table.getRow(this.formRow.id), this.formRow);
       this.formRow = undefined;
@@ -402,16 +419,10 @@ class TrekDatabase {
         this.table.head.innerHTML = '';
         this.table.head.appendChild(this.table.getHeadRow());
         this.table.body.innerHTML = '';
-        const tr = document.createElement('tr');
-        tr.id = 'new';
-        tr.innerHTML = `<td colspan="${this.table.columns.length}" class="has-text-centered">New Entry</td>`;
-        tr.addEventListener('click', (event) => {
-          Trek.editThis(event)
-        });
-        this.table.body.appendChild(tr);
+        this.table.body.appendChild(this.table.getRow('new'));
         for (var index = this.table.model.getMaxIndex(); index > 0; index--) {
           if (this.table.model[index] !== undefined) {
-            this.table.body.appendChild(this.table.body.getRow(index));
+            this.table.body.appendChild(this.table.getRow(index));
           }
         }
         this.lastUpdate = response.time;
@@ -437,6 +448,7 @@ class TrekDatabase {
     this.ajaxRequest(
       {operation: 'INSERT', tableName: this.tableName, lastUpdate: this.lastUpdate, data: [rowData]},
       (response) => {
+        this.table.model.editDone();
         this.table.update(response.data);
         this.lastUpdate = response.time;
         onSuccess();
@@ -452,6 +464,7 @@ class TrekDatabase {
     this.ajaxRequest(
       {operation: 'ALTER', tableName: this.tableName, lastUpdate: this.lastUpdate, data: data},
       (response) => {
+        this.table.model.editDone();
         this.table.update(response.data);
         this.lastUpdate = response.time;
         onSuccess();
@@ -469,6 +482,14 @@ class TrekDatabase {
         this.lastUpdate = response.time;
       }
     );
+  }
+
+  error(message) {
+    console.log('Trek Error: ', message);
+  }
+
+  warning(message) {
+    console.log('Trek Warning: ', message);
   }
 
 }
