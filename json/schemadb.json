@@ -28,6 +28,12 @@
                     "required": true
                 },
                 {
+                    "name": "integercolumn",
+                    "title": "Integer Column",
+                    "class": 1,
+                    "type": "INTEGER"
+                },
+                {
                     "name": "autocolumn",
                     "title": "Auto Column",
                     "class": 2,
@@ -38,6 +44,25 @@
                     "title": "Foreign Table ID",
                     "class": 3,
                     "type": "FOREIGN KEY"
+                },
+                {
+                    "name": "foreigncolumn",
+                    "title": "Foreign Column",
+                    "class": 4,
+                    "sql": "foreigntable.foreigncolumn"
+                },
+                {
+                    "name": "sqlsum",
+                    "title": "SQL Sum",
+                    "class": 4,
+                    "sql": "SUM(integercolumn)"
+                },
+                {
+                    "name": "foreignsum",
+                    "title": "Foreign Sum",
+                    "class": 4,
+                    "sql": "SUM(numerictable.integercolumn)",
+                    "table": "numerictable"
                 }
             ]
         },
@@ -67,12 +92,30 @@
                     "type": "VARCHAR(30)"
                 }
             ]
+        },
+        "numerictable": {
+            "title": "Numeric Table",
+            "columns": [
+                {
+                    "title": "Schematable ID",
+                    "table": "schematable",
+                    "type": "FOREIGN KEY",
+                    "class": 3
+                },
+                {
+                    "name": "integercolumn",
+                    "title": "Integer Column",
+                    "type": "INTEGER",
+                    "class": 1
+                }
+            ]
         }
     },
     "order": [
         "schematable",
         "foreigntable",
-        "testtable"
+        "testtable",
+        "numerictable"
     ]
 }
 
