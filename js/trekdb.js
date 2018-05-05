@@ -247,7 +247,7 @@ class TrekTableView {
           while (this.model[nextSmallerId] === undefined && nextSmallerId > 0) {
             nextSmallerId--;
           }
-          if (nextSmallerId === 0) this.table.body.appendChild(this.table.getRow(id));
+          if (nextSmallerId === 0) this.body.appendChild(this.table.getRow(id));
           else this.body.insertBefore(this.getRow(id), document.getElementById(nextSmallerId));
         } else {
           this.body.replaceChild(this.getRow(id), tr);
@@ -349,6 +349,7 @@ class TrekDatabase {
   cancelThis(target) {
     this.table.model.editDone();
     if (this.formRow !== undefined) {
+      console.log('cancelThis, formRow: ',this.formRow, ' newRow: ', this.table.newRow);
       if (this.formRow.id === 'new') this.table.body.replaceChild(this.table.newRow, this.formRow);
       else this.table.body.replaceChild(this.table.getRow(this.formRow.id), this.formRow);
       this.formRow = undefined;
@@ -379,8 +380,8 @@ class TrekDatabase {
   }
 
   exitEditMode() {
+    if (this.formRow !== undefined) this.cancelThis();
     if (this.editMode) {
-      this.cancelThis();
       this.table.dom.classList.remove('is-hoverable');
       this.editMode = false;
       this.editButton.textContent = "Edit";
@@ -443,8 +444,8 @@ class TrekDatabase {
     this.activeTab.classList.add('is-active');
     this.exitEditMode();
     this.ajaxRequest(
-      {operation: 'SELECT', tableName: this.tableName},
-      (response) => {
+      {operation: 'SELECT', tableName: this.tableName}, // data
+      (response) => { // onSuccess
         this.table = new TrekTableView(this.tableColumns[this.tableName], response.data);
         this.table.head.innerHTML = '';
         this.table.head.appendChild(this.table.getHeadRow());
@@ -456,7 +457,7 @@ class TrekDatabase {
           }
         }
         this.lastUpdate = response.time;
-      }
+      },
     );
   }
 
