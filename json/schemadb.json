@@ -62,7 +62,8 @@
                     "title": "Foreign Sum",
                     "class": 4,
                     "sql": "SUM(numerictable.integercolumn)",
-                    "table": "numerictable"
+                    "table": "numerictable",
+                    "type": "INTEGER"
                 }
             ]
         },
