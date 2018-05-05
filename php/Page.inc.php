@@ -69,7 +69,7 @@ class Page {
             ? $this->config['favicon']
             : $favicon;
 
-        $this->addCss("css/bulma.css");
+        $this->addCss("css/bulma.min.css");
         $this->addJs("js/trekpage.js");
     }
 
@@ -133,7 +133,7 @@ class Page {
     */
     public function getMainNavigation() 
     {
-        $nav = "<div class=\"navbar-menu\">\n"
+        $nav = "<div class=\"navbar-menu\" id=\"main-menu\">\n"
               ." <div class=\"navbar-start\"></div>\n"
               ." <div class=\"navbar-end\">\n";
         foreach ($this->config['order'] as $name) {
@@ -171,7 +171,7 @@ class Page {
             ." <div class=\"container\">\n"
             ."  <div class=\"navbar-brand\">\n"
             ."   <a href=\"$homeLink\" class=\"navbar-item is-italic\">{$this->config['title']}</a>\n"
-            ."   <div class=\"navbar-burger\"><span></span><span></span><span></span></div>\n"
+            ."   <a role=\"button\" class=\"navbar-burger\" data-target=\"main-menu\" aria-label=\"menu\" aria-expanded=\"false\"><span aria-hidden=\"true\"></span><span aria-hidden=\"true\"></span><span aria-hidden=\"true\"></span></a>\n"
             ."  </div>\n"
             .$nav
             ." </div>\n"

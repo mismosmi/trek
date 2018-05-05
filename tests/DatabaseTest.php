@@ -29,6 +29,7 @@ class DatabaseTest extends TestCase
             ."  <li class=\"is-active\" data-table=\"schematable\"><a onclick=\"Trek.selectTable(this)\">Schema</a></li>\n"
             ."  <li data-table=\"foreigntable\"><a onclick=\"Trek.selectTable(this)\">Foreign Table</a></li>\n"
             ."  <li data-table=\"testtable\"><a onclick=\"Trek.selectTable(this)\">Test Table</a></li>\n"
+            ."  <li data-table=\"numerictable\"><a onclick=\"Trek.selectTable(this)\">Numeric Table</a></li>\n"
             ." </ul>\n"
             ."</div>\n";
         $this->assertEquals($result, $this->db->getDbNav());

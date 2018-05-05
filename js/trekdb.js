@@ -478,6 +478,10 @@ class TrekDatabase {
           }
         }
         this.lastUpdate = response.time;
+        // push url including table
+        const url = new URL(document.location.href);
+        url.searchParams.set('table', this.tableName);
+        window.history.pushState(response.data, '', url.pathname + url.search);
       },
     );
   }

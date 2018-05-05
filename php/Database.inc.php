@@ -30,6 +30,12 @@ class Database extends Page
      * @var array
      */
     protected $dbInfo;
+    /**
+     * Active table
+     *
+     * @var string
+     */
+    protected $activeTable;
 
     /**
     * Constructor
@@ -40,17 +46,21 @@ class Database extends Page
     * @param string $favicon    set page-specific favicon, defaults to setting
     *                           in config.php
     * @param string $configFile use special config.php, mainly for testing
+    * @param string $activeTable specify active table
     */
     public function __construct(
         $dbName,
         $title = '',
         $favicon = '',
-        $configFile = ''
+        $configFile = '',
+        $activeTable = ''
     ) 
     {
         $this->dbName = $dbName;
         parent::__construct($title, $favicon, $configFile);
         $this->dbInfo = json_decode(file_get_contents(PHP_ROOT.$this->config['pages'][$dbName]['path']), true);
+
+        $this->activeTable = $activeTable ?: $this->dbInfo['order'][0];
 
         $this->addJs('js/jquery-3.2.1.min.js');
         $this->addJs('js/trekdb.js');
@@ -64,7 +74,7 @@ class Database extends Page
      */
     public function getTable()
     {
-        return "<form id=\"trek-form\" onsubmit=\"Trek.submit(this)\"><table class=\"table is-fullwidth\" id=\"trek-table\"><thead></thead><tbody></tbody></table></form>\n";
+        return "<form id=\"trek-form\" onsubmit=\"Trek.submit(this)\"><table class=\"table\" id=\"trek-table\"><thead></thead><tbody></tbody></table></form>\n";
     }
 
     /**
@@ -73,11 +83,10 @@ class Database extends Page
     public function getDbNav()
     {
         $tabs = "";
-        $active = " class=\"is-active\"";
         foreach ($this->dbInfo['order'] as $name) {
             $data = $this->dbInfo['tables'][$name];
+            $active = $name == $this->activeTable ? " class=\"is-active\"" : "";
             $tabs .= "  <li$active data-table=\"$name\"><a onclick=\"Trek.selectTable(this)\">{$data['title']}</a></li>\n";
-            $active = "";
         }
         return 
              "<div class=\"tabs\" id=\"trek-db-nav\">\n"
@@ -146,7 +155,7 @@ class Database extends Page
             ."document.addEventListener('DOMContentLoaded', () => {\n"
             ."  Trek = new TrekDatabase({\n"
             ."    ajaxUrl: '$ajaxUrl',\n"
-            ."    tableName: '{$this->dbInfo['order'][0]}',\n"
+            ."    tableName: '{$this->activeTable}',\n"
             ."    tableColumns: {\n"
             .$tableColumns
             ."    }\n"
