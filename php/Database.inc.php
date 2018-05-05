@@ -64,7 +64,7 @@ class Database extends Page
      */
     public function getTable()
     {
-        return "<form id=\"trek-form\" onsubmit=\"return false;\"><table class=\"table\" id=\"trek-table\"><thead></thead><tbody></tbody></table></form>\n";
+        return "<form id=\"trek-form\" onsubmit=\"Trek.submit(this)\"><table class=\"table is-fullwidth\" id=\"trek-table\"><thead></thead><tbody></tbody></table></form>\n";
     }
 
     /**
@@ -115,6 +115,19 @@ class Database extends Page
                             ."},\n";
                     }
                 }
+                if ($column['class'] === 3 || ($column['class'] === 2 && array_key_exists('table', $column))) {
+                    foreach ($this->dbInfo['tables'][$column['table']]['columns'] as $fcol) {
+                        switch ($fcol['class']) {
+                        case 1: // Data Column
+                            $tableColumns .= 
+                                "        {\n"
+                                ."           name: \"{$column['table']}_{$fcol['name']}\",\n"
+                                ."           class: 4,\n"
+                                ."        },\n";
+                        }
+                    }
+                }
+
                 $tableColumns .=
                     "        {\n"
                     ."           name: \"{$name}\",\n"

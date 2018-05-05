@@ -111,7 +111,12 @@ class SqlDbTest extends TestCase
         $result = ['success' => True, 'data' => [1 => ['testcol' => "v2", 'referencedTable_testcol' => "testvalue"]]];
         $this->assertArraySubset($result, $this->db->dbSelectJoin(
             ['name' => "testtable", 'columns' => [["name" => "testcol", 'class' => 1, 'type' => "VARCHAR"]]], 
-            [['name' => "referencedTable", 'columns' => [['name' => "testcol", 'class'=>1, 'type'=>"VARCHAR"]]]]
+            [['name' => "referencedTable", 'columns' => [['name' => "testcol", 'class'=>1, 'type'=>"VARCHAR"]], 'reference' => "left"]]
+        ));
+        $result = ['success' => true, 'data' => [1 => ['testcol' => "testvalue", 'testtable_testcol' => ["v2"]]]];
+        $this->assertArraySubset($result, $this->db->dbSelectJoin(
+            ['name' => "referencedTable", 'columns' => [['name' => "testcol", 'class' => 1, 'type' => "VARCHAR"]]],
+            [['name' => "testtable", 'reference' => "right", 'columns' => [['name' => "testcol", 'class' => 1, 'type' => "VARCHAR"]]]]
         ));
     }
 
