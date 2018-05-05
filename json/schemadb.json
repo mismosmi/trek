@@ -48,22 +48,15 @@
                 {
                     "name": "foreigncolumn",
                     "title": "Foreign Column",
-                    "class": 4,
-                    "sql": "foreigntable.foreigncolumn"
-                },
-                {
-                    "name": "sqlsum",
-                    "title": "SQL Sum",
-                    "class": 4,
-                    "sql": "SUM(integercolumn)"
+                    "class": 2,
+                    "js": "tv.foreigntable_foreigncolumn"
                 },
                 {
                     "name": "foreignsum",
                     "title": "Foreign Sum",
-                    "class": 4,
-                    "sql": "SUM(numerictable.integercolumn)",
-                    "table": "numerictable",
-                    "type": "INTEGER"
+                    "class": 2,
+                    "js": "tv.sum(tv.numerictable_integercolumn)",
+                    "table": "numerictable"
                 }
             ]
         },

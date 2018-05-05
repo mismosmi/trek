@@ -16,6 +16,7 @@ class RestApiTest extends TestCase
         $this->api->processRequest(['operation' => "SELECT", 'tableName' => "schematable"]);
         $this->api->processRequest(['operation' => "SELECT", 'tableName' => "foreigntable"]);
         $this->api->processRequest(['operation' => "SELECT", 'tableName' => "testtable"]);
+        $this->api->processRequest(['operation' => "SELECT", 'tableName' => "numerictable"]);
     }
 
     public function testSelect()
@@ -105,5 +106,27 @@ class RestApiTest extends TestCase
             2 => ['testcolumn' => "testvalue 2"]
         ]], $result);
     }
+
+    public function testSum()
+    {
+        $this->api->processRequest([
+            'operation' => "INSERT",
+            'tableName' => "schematable",
+            'data' => [['datacolumn' => "some data"]]
+        ]);
+        $this->api->processRequest([
+            'operation' => "INSERT",
+            'tableName' => "numerictable",
+            'data' => [['schematable_id' => 1, 'integercolumn' => 5], ['schematable_id' => 1, 'integercolumn' => 3]]
+        ]);
+        $result = json_decode($this->api->processRequest([
+            'operation' => "SELECT",
+            'tableName' => "schematable"
+        ]), true);
+        $this->assertArraySubset(['data' => [
+            1 => ['numerictable_id' => [1,2], 'numerictable_integercolumn' => [5,3]]
+        ]], $result);
+    }
+
 }
 

@@ -114,8 +114,20 @@ class RestApi extends SqlDb
                 case 1: // Data Column
                     $thisTable['columns'][] = $col;
                     break;
+                case 2: // Auto Column
+                    if (array_key_exists('table', $col)) {
+                        $joinTable = ['name' => $col['table'], 'columns' => [], 'reference' => "right"];
+                        foreach ($this->dbInfo['tables'][$col['table']]['columns'] as $fcol) {
+                            switch ($fcol['class']) {
+                            case 1: // Data Column
+                                $joinTable['columns'][] = $fcol;
+                            }
+                        }
+                        $joinTables[] = $joinTable;
+                    }
+                    break;
                 case 3: // Foreign Key
-                    $joinTable = ['name' => $col['table'], 'columns' => []];
+                    $joinTable = ['name' => $col['table'], 'columns' => [], 'reference' => "left"];
                     foreach ($this->dbInfo['tables'][$col['table']]['columns'] as $fcol) {
                         switch ($fcol['class']) {
                         case 1: // Data Column
@@ -123,12 +135,6 @@ class RestApi extends SqlDb
                         }
                     }
                     $joinTables[] = $joinTable;
-                    break;
-                case 4: // SQL Column
-                    if (in_array($col, 'table')) {
-                        // TODO add a joinTable for this table
-                    } 
-                    // TODO figure out column type from reference
                     break;
                 }
             }

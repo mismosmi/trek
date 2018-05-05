@@ -115,6 +115,19 @@ class Database extends Page
                             ."},\n";
                     }
                 }
+                if ($column['class'] === 3 || ($column['class'] === 2 && array_key_exists('table', $column))) {
+                    foreach ($this->dbInfo['tables'][$column['table']]['columns'] as $fcol) {
+                        switch ($fcol['class']) {
+                        case 1: // Data Column
+                            $tableColumns .= 
+                                "        {\n"
+                                ."           name: \"{$column['table']}_{$fcol['name']}\",\n"
+                                ."           class: 4,\n"
+                                ."        },\n";
+                        }
+                    }
+                }
+
                 $tableColumns .=
                     "        {\n"
                     ."           name: \"{$name}\",\n"

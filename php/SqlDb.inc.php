@@ -343,7 +343,7 @@ class SqlDb {
     )
     {
         $table = $thisTable['name'];
-        $order = $order ?: "BY {$thisTable['name']}.id ASC";
+        $order = $order ?: "BY {$thisTable['name']}.id";
 
         $connStatus = $this->dbConnect();
         if (!$connStatus['success']) return $connStatus;
@@ -366,16 +366,13 @@ class SqlDb {
                 "{$thisTable['name']}.deleted"
             ];
             $columnTypes = ['createdate' => "TIMESTAMP", 'modifieddate' => "TIMESTAMP"];
+            $arrayColumns = [];
 
             $js = "";
             foreach ($thisTable['columns'] as $column) {
                 switch ($column['class']) {
                 case 1:
                     $columns[] = "{$thisTable['name']}.{$column['name']}";
-                    $columnTypes[$column['name']] = $column['type'];
-                    break;
-                case 4:
-                    $columns[] = "{$column['sql']} AS {$column['name']}";
                     $columnTypes[$column['name']] = $column['type'];
                     break;
                 }
@@ -389,7 +386,20 @@ class SqlDb {
                 $columnTypes["{$table['name']}_createdate"] = "TIMESTAMP";
                 $columnTypes["{$table['name']}_modifieddate"] = "TIMESTAMP";
                 $columnTypes["{$table['name']}_deleted"] = "BOOLEAN";
-                $js .= " LEFT JOIN {$table['name']} ON {$thisTable['name']}.{$table['name']}_id = {$table['name']}.id";
+                switch ($table['reference']) {
+                case "left":
+                    $js .= " LEFT JOIN {$table['name']} ON {$thisTable['name']}.{$table['name']}_id = {$table['name']}.id";
+                    break;
+                case "right":
+                    $js .= " LEFT JOIN {$table['name']} ON {$thisTable['name']}.id = {$table['name']}.{$thisTable['name']}_id";
+                    $arrayColumns[] = "{$table['name']}_id";
+                    $arrayColumns[] = "{$table['name']}_createdate";
+                    $arrayColumns[] = "{$table['name']}_modifieddate";
+                    $arrayColumns[] = "{$table['name']}_deleted";
+                    foreach ($table['columns'] as $column) $arrayColumns[] = "{$table['name']}_{$column['name']}";
+                    $order .= ",{$table['name']}_id";
+                    break;
+                }
                 foreach ($table['columns'] as $column) {
                     switch ($column['class']) {
                         case 1:
@@ -399,6 +409,7 @@ class SqlDb {
                     }
                 }
             }
+            $order .= " ASC";
             //echo "SELECT ".join(",",$columns)." FROM {$thisTable['name']}$js$ws ORDER $order$ls\n";
             $stmt = $this->db->prepare(
                 "SELECT ".join(",",$columns)." "
@@ -418,20 +429,31 @@ class SqlDb {
                     $data[$row['id']] = ['deleted' => true];
                     continue;
                 }
-                $data[$row['id']] = [];
+                $firstOccurence = !array_key_exists($row['id'], $data); // rows that have the same id only add to array columns
+                if ($firstOccurence) $data[$row['id']] = [];
                 foreach ($row as $key => $val) {
                     if ($key === "id" || $key === "deleted") continue;
-                    elseif (strtoupper(substr($columnTypes[$key], 0, 3)) === "INT") {
-                        $data[$row['id']][$key] = intval($val);
+                    // if this is not the first occurence and it is not an arraycolumn, skip it.
+                    $arrayColumn = in_array($key, $arrayColumns);
+                    if (!$firstOccurence && !$arrayColumn) continue; 
+                    $typedVal;
+                    if (strtoupper(substr($columnTypes[$key], 0, 3)) === "INT") {
+                        $typedVal = intval($val);
                     } elseif (strtoupper(substr($columnTypes[$key], 0, 4)) === "BOOL") {
-                        $data[$row['id']][$key] = filter_var($val, FILTER_VALIDATE_BOOLEAN);
+                        $typedVal = filter_var($val, FILTER_VALIDATE_BOOLEAN);
                     } elseif (
                         strtoupper(substr($columnTypes[$key], 0, 7)) === "DECIMAL" ||
                         strtoupper(substr($columnTypes[$key], 0, 6)) === "DOUBLE" 
                     ) {
-                        $data[$row['id']][$key] = floatval($val);
+                        $typedVal = floatval($val);
                     } else {
-                        $data[$row['id']][$key] = $val;
+                        $typedVal = $val;
+                    }
+                    if ($arrayColumn) { // these columns need to become arrays.
+                        if ($firstOccurence) $data[$row['id']][$key] = [$typedVal];
+                        else $data[$row['id']][$key][] = $typedVal;
+                    } else {
+                        $data[$row['id']][$key] = $typedVal;
                     }
                 }
             }

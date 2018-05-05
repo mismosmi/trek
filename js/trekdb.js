@@ -59,11 +59,11 @@ class TrekTableModel {
             }
           });
           break;
-        case 4: // SQL Column
+        case 4: // Foreign Column
           Object.defineProperty(this, col.name, {
             get: () => {
-              if (this.buffer !== undefined) return this.buffer[col.name];
-              return this[this.currentId][col.name];
+              if (this.buffer !== undefined) return this.buffer[col.name] ? this.buffer[col.name] : '';
+              return this[this.currentId][col.name] ? this[this.currentId][col.name] : '';
             }
           });
       }
@@ -115,6 +115,16 @@ class TrekTableModel {
     return this.buffer = this[this.currentId];
   }
 
+  sum(data) {
+    if (data.length === 0) return 0;
+    return data.reduce((accumulator, currentValue) => accumulator + currentValue );
+  }
+
+  avg(data) {
+    if (data.length === 0) return 0;
+    return this.sum(data) / data.length;
+  }
+
 }
 
 class TrekTableView {
@@ -148,7 +158,12 @@ class TrekTableView {
     tr.id = id;
     this.model.currentId = id;
     this.columns.forEach( (col) => {
-      tr.innerHTML += `<td data-col="${col.name}">${this.model[col.name]}</td>`;
+      switch (col.class) {
+        case 4:
+          break;
+        default:
+          tr.innerHTML += `<td data-col="${col.name}">${this.model[col.name]}</td>`;
+      }
     });
     tr.innerHTML += '<td></td>'; // empty td for control column
     tr.addEventListener('click', (event) => {
@@ -179,7 +194,12 @@ class TrekTableView {
   getHeadRow() {
     const tr = document.createElement('tr');
     this.columns.forEach( (col) => {
-      tr.innerHTML += `<th>${col.title}</th>`;
+      switch (col.class) {
+        case 4:
+          break;
+        default:
+          tr.innerHTML += `<th>${col.title}</th>`;
+      }
     });
     tr.innerHTML += '<th></th>'; // empty header for controls-column
     return tr;
@@ -197,8 +217,9 @@ class TrekTableView {
           // add an input here
           tr.innerHTML += `<td data-col="${col.name}" class="control"><input class="input" type="text" placeholder="${col.title}" value="${this.model[col.name] ? this.model[col.name] : ''}" oninput="Trek.updateForm(this)"></td>`;
           break;
+        case 4: // Foreign Column
+          break;
         default:
-          // add an empty column as placeholder
           tr.innerHTML += `<td data-col="${col.name}">${this.model[col.name] ? this.model[col.name] : ''}</td>`;
       }
     });
@@ -247,7 +268,7 @@ class TrekTableView {
           while (this.model[nextSmallerId] === undefined && nextSmallerId > 0) {
             nextSmallerId--;
           }
-          if (nextSmallerId === 0) this.body.appendChild(this.table.getRow(id));
+          if (nextSmallerId === 0) this.body.appendChild(this.getRow(id));
           else this.body.insertBefore(this.getRow(id), document.getElementById(nextSmallerId));
         } else {
           this.body.replaceChild(this.getRow(id), tr);
