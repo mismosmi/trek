@@ -42,8 +42,7 @@
                 {
                     "table": "foreigntable",
                     "title": "Foreign Table ID",
-                    "class": 3,
-                    "type": "FOREIGN KEY"
+                    "class": 3
                 },
                 {
                     "name": "foreigncolumn",
@@ -93,7 +92,6 @@
                 {
                     "title": "Schematable ID",
                     "table": "schematable",
-                    "type": "FOREIGN KEY",
                     "class": 3
                 },
                 {

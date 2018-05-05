@@ -2,17 +2,17 @@
     "name": "warenwirtschaft",
     "title": "Warenwirtschaft",
     "tables": {
-        "projects": {
-            "title": "Projects",
+        "project": {
+            "title": "Projekte",
             "columns": [
                 {
                     "name": "id",
-                    "title": "Project-ID",
+                    "title": "Projekt-ID",
                     "class": 0
                 },
                 {
                     "name": "category",
-                    "title": "Category",
+                    "title": "Kategorie",
                     "class": 1,
                     "type": "VARCHAR(30)"
                 },
@@ -24,7 +24,7 @@
                 },
                 {
                     "name": "what",
-                    "title": "What (Define Project)",
+                    "title": "Projektdefinition",
                     "class": 1,
                     "type": "VARCHAR(30)"
                 },
@@ -36,7 +36,7 @@
                 },
                 {
                     "name": "responsibility",
-                    "title": "Person Responsible",
+                    "title": "Verantwortliche Person",
                     "class": 1,
                     "type": "VARCHAR(30)"
                 },
@@ -48,32 +48,140 @@
                 },
                 {
                     "name": "budgetsum",
-                    "title": "Sum",
+                    "title": "Summe",
                     "class": 1,
                     "type": "DECIMAL"
                 },
                 {
                     "name": "spending",
-                    "title": "Spending",
-                    "class": 1,
-                    "type": "DECIMAL"
+                    "title": "Budget Ausgegeben",
+                    "class": 2,
+                    "js": "tv.sum(tv.order_sum)",
+                    "table": "order"
                 },
                 {
                     "name": "budgetleft",
-                    "title": "Budget Left",
+                    "title": "Budget Übrig",
                     "class": 2,
                     "js": "tv.budgetsum - tv.spending"
                 },
                 {
                     "name": "notes",
-                    "title": "Notes",
+                    "title": "Notizen",
+                    "class": 1,
+                    "type": "VARCHAR(30)"
+                }
+            ]
+        },
+        "order": {
+            "title": "Wareneingang",
+            "columns": [
+                {
+                    "table": "project",
+                    "title": "Projekt ID",
+                    "class": 3
+                },
+                {
+                    "table": "product",
+                    "title": "Produkt ID",
+                    "class": 3
+                },
+                {
+                    "name": "modifieddate",
+                    "title": "Zuletzt bearbeitet",
+                    "class": 0
+                },
+                {
+                    "name": "productcategory",
+                    "title": "Produktkategorie",
+                    "class": 2,
+                    "js": "tv.product_category"
+                },
+                {
+                    "name": "productname",
+                    "title": "Produktname",
+                    "class": 2,
+                    "js": "tv.product_name"
+                },
+                {
+                    "name": "unitprice",
+                    "title": "Preis/Einheit",
+                    "class": 2,
+                    "js": "tv.product_unitprice"
+                },
+                {
+                    "name": "quantity",
+                    "title": "Anzahl Einheiten",
+                    "class": 1,
+                    "type": "INTEGER"
+                },
+                {
+                    "name": "sum",
+                    "title": "Summe Bestellung",
+                    "class": 2,
+                    "js": "tv.quantity * tv.product_unitprice"
+                }
+            ]
+        },
+        "delivery": {
+            "title": "Warenausgang",
+            "column_reference": "order"
+        },
+        "product": {
+            "title": "Produkte",
+            "columns": [
+                {
+                    "name": "id",
+                    "title": "Produkt ID",
+                    "class": 0
+                },
+                {
+                    "name": "category",
+                    "title": "Kategorie",
+                    "class": 1,
+                    "type": "VARCHAR(30)"
+                },
+                {
+                    "name": "name",
+                    "title": "Produktname",
+                    "class": 1,
+                    "type": "VARCHAR(30)",
+                    "required": true
+                },
+                {
+                    "name": "unitprice",
+                    "title": "Preis/Einheit",
+                    "class": 1,
+                    "type": "EURO",
+                    "required": true
+                },
+                {
+                    "name": "unit",
+                    "title": "Teile/Einheit",
+                    "class": 1,
+                    "type": "INTEGER",
+                    "default": 1
+                },
+                {
+                    "name": "pieceprice",
+                    "title": "Preis/Teil",
+                    "class": 2,
+                    "js": "tv.unitprice * tv.unit"
+                },
+                {
+                    "name": "notes",
+                    "title": "Notizen",
                     "class": 1,
                     "type": "VARCHAR(30)"
                 }
             ]
         }
+
     },
     "order": [
-        "projects"
+        "project",
+        "product",
+        "order",
+        "delivery"
     ]
 }
