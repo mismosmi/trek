@@ -369,9 +369,15 @@ class SqlDb {
 
             $js = "";
             foreach ($thisTable['columns'] as $column) {
-                if ($column['class'] === 1) {
+                switch ($column['class']) {
+                case 1:
                     $columns[] = "{$thisTable['name']}.{$column['name']}";
                     $columnTypes[$column['name']] = $column['type'];
+                    break;
+                case 4:
+                    $columns[] = "{$column['sql']} AS {$column['name']}";
+                    $columnTypes[$column['name']] = $column['type'];
+                    break;
                 }
             }
             foreach ($joinTables as $table) {
@@ -385,9 +391,11 @@ class SqlDb {
                 $columnTypes["{$table['name']}_deleted"] = "BOOLEAN";
                 $js .= " LEFT JOIN {$table['name']} ON {$thisTable['name']}.{$table['name']}_id = {$table['name']}.id";
                 foreach ($table['columns'] as $column) {
-                    if ($column['class'] === 1) {
+                    switch ($column['class']) {
+                        case 1:
                         $columns[] = "{$table['name']}.{$column['name']} AS {$table['name']}_{$column['name']}";
                         $columnTypes["{$table['name']}_{$column['name']}"] = $column['type'];
+                        break;
                     }
                 }
             }

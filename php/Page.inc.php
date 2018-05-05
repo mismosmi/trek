@@ -139,12 +139,14 @@ class Page {
         foreach ($this->config['order'] as $name) {
             $data = $this->config['pages'][$name];
             $nav .= "  <a class=\"navbar-item";
+            if (strstr(basename($data['path']),'?',true) == HTML_FILE) $nav .= " is-active";
             switch ($data['type']) {
             case "html":
-                $nav .= " is-active";
+                if (basename($data['path']) == HTML_FILE) $nav .= " is-active";
                 $file = HTML_ROOT.$data['path'];
                 break;
             case "database":
+                if ($_GET['db'] == $name) $nav .= " is-active";
                 $file = HTML_ROOT."php/db.php?db=".$name;
                 break;
             }

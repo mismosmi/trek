@@ -123,6 +123,13 @@ class RestApi extends SqlDb
                         }
                     }
                     $joinTables[] = $joinTable;
+                    break;
+                case 4: // SQL Column
+                    if (in_array($col, 'table')) {
+                        // TODO add a joinTable for this table
+                    } 
+                    // TODO figure out column type from reference
+                    break;
                 }
             }
             $where = empty($postData['lastUpdate']) 
