@@ -356,7 +356,7 @@ class SqlDb {
             if (!empty($where)) {
                 $ws = " WHERE ";
                 foreach ($where as $w) {
-                    [$key, $op, $val] = explode(' ', $w);
+                    [$key, $op, $val] = explode(' ', $w, 3);
                     $ws .= "$key $op :".str_replace('.','_',$key);
                 }
             }
@@ -413,7 +413,7 @@ class SqlDb {
             );
             if (!empty($where)) {
                 foreach ($where as $w) {
-                    [$key, $op, $val] = explode(' ', $w);
+                    [$key, $op, $val] = explode(' ', $w, 3);
                     $stmt->bindValue(":".str_replace('.','_',$key), $val);
                 }
             }

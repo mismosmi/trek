@@ -143,6 +143,7 @@ class RestApi extends SqlDb
                 : ["{$thisTable['name']}.modifieddate >= {$postData['lastUpdate']}"];
 
             $ret = $this->dbSelectJoin($thisTable, $joinTables, $where);
+            $ret['where'] = $where;
             if (!$ret['success']) {
                 if (empty($postData['lastUpdate'])) {
                     $createmsg = "";
