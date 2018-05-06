@@ -120,6 +120,12 @@ class SqlDbTest extends TestCase
         ));
     }
 
+    public function testDouble()
+    {
+        $columns = [['name' => "doublecol", 'type' => "DOUBLE", 'class' => 1]];
+        $this->assertArraySubset(SUCCESS, $this->db->dbCreateTable('testtable', $columns));
+    }
+
 }
 
 

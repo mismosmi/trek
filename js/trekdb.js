@@ -7,6 +7,40 @@ class TrekTableModel {
   // Construct TrekDatabase Object from data given in ajax payload
   constructor(columnData, tableData) {
 
+    this.convertRowTypes = (row) => {
+      const columns = columnData;
+      columns.forEach( (col) => {
+        const type = col.type.toUpperCase();
+        if (
+          type.startsWith('INT') ||
+          type.startsWith('EURO')
+        ) {
+          if (Array.isArray(row[col.name])) return row[col.name] = row[col.name].map( val => parseInt(val) );
+          return row[col.name] = parseInt(row[col.name]);
+        }
+        
+        if (
+          type.startsWith('BOOL')
+        ) {
+        if (Array.isArray(row[col.name])) return row[col.name] = row[col.name].map( val => val == true );
+          return row[col.name] = row[col.name] == true;
+        }
+
+        if (
+          type.startsWith('DOUBLE') ||
+          type.startsWith('REAL')
+        ) {
+        if (Array.isArray(row[col.name])) return row[col.name] = row[col.name].map( val => parseFloat(val) );
+          return row[col.name] = parseFloat(row[col.name]);
+        }
+      });
+      return row;
+    };
+
+
+    // type conversion
+    Object.values(tableData).forEach(this.convertRowTypes);
+
     // append all table-data to the database-object
     Object.assign(this, tableData);
 
@@ -33,11 +67,21 @@ class TrekTableModel {
         case 1: // Data Column
           Object.defineProperty(this, col.name, {
             get: () => {
-              if (this.buffer !== undefined) return this.buffer[col.name];
-              return this[this.currentId][col.name];
+              if (this.buffer !== undefined) return this.buffer[col.name] ? this.buffer[col.name] : '';
+              return this[this.currentId][col.name] ? this[this.currentId][col.name] : '';
             },
             set: (value) => {
-              this.buffer[col.name] = value;
+              const type = col.type.toUpperCase();
+              if (type.startsWith('INT')) return this.buffer[col.name] = parseInt(value);
+              
+              if (type.startsWith('BOOL')) return this.buffer[col.name] = (value == true || value == 'true');
+
+              if (type.startsWith('DOUBLE') || type.startsWith('REAL')) return this.buffer[col.name] = parseFloat(value);
+
+              if (type.startsWith('EURO')) return this.buffer[col.name] = Math.round(parseFloat(value) * (10**4));
+
+
+              return this.buffer[col.name] = value;
             }
           });
           break;
@@ -145,6 +189,16 @@ class TrekTableView {
     });
   }
 
+  getTypedFormat(col) {
+    switch (col.type) {
+      case 'EURO':
+        if (!this.model[col.name]) return '';
+        return (this.model[col.name] * (10**-4)).toFixed(2);
+      default:
+        return this.model[col.name];
+    }
+  }
+
   // get column by name
   getColumnByName(colName) {
     return this.columns.find( (col) => {
@@ -162,7 +216,7 @@ class TrekTableView {
         case 4:
           break;
         default:
-          tr.innerHTML += `<td data-col="${col.name}">${this.model[col.name]}</td>`;
+          tr.innerHTML += `<td data-col="${col.name}">${this.getTypedFormat(col)} ${col.symbol}</td>`;
       }
     });
     tr.innerHTML += '<td></td>'; // empty td for control column
@@ -215,7 +269,7 @@ class TrekTableView {
         case 1: // Data Column
         case 3: // Foreign Key
           // add an input here
-          tr.innerHTML += `<td data-col="${col.name}" class="control"><input class="input" type="text" placeholder="${col.title}" value="${this.model[col.name] ? this.model[col.name] : ''}" oninput="Trek.updateForm(this)"></td>`;
+          tr.innerHTML += `<td data-col="${col.name}" class="control"><input class="input" type="text" placeholder="${col.title}" value="${this.getTypedFormat(col)}" oninput="Trek.updateForm(this)"> ${col.symbol}</td>`;
           break;
         case 4: // Foreign Column
           break;
@@ -223,26 +277,6 @@ class TrekTableView {
           tr.innerHTML += `<td data-col="${col.name}">${this.model[col.name] ? this.model[col.name] : ''}</td>`;
       }
     });
-    // i think we won't need all of this following stuff
-    //// add a column for the controls (buttons)
-    //const controlTd = document.createElement('td');
-    //// save-button
-    //const saveButton = document.createElement('span');
-    //saveButton.classList.add('button', 'is-link');
-    //saveButton.textContent = 'Save';
-    //saveButton.addEventListener('click', (event) => {
-    //  Trek.saveThis(event);
-    //});
-    //controlTd.append(saveButton);
-    //// cancel-button
-    //const cancelButton = document.createElement('span');
-    //cancelButton.classList.add('button');
-    //cancelButton.textContent = 'Cancel';
-    //cancelButton.addEventListener('click', (event) => {
-    //  Trek.cancelThis(event);
-    //});
-    //controlTd.append(cancelButton);
-    //tr.append(controlTd);
 
     const controlTd = document.createElement('td');
     controlTd.classList.add('buttons','has-addons');
@@ -262,7 +296,7 @@ class TrekTableView {
           this.body.removeChild(tr);
         }
       } else {
-        this.model[id] = tableData[id];
+        this.model[id] = this.model.convertRowTypes(tableData[id]);
         if (tr === null) {
           let nextSmallerId = id - 1;
           while (this.model[nextSmallerId] === undefined && nextSmallerId > 0) {

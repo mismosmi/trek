@@ -105,14 +105,17 @@ class SqlDb {
                 $colName = "";
                 switch ($col['class']) {
                 case 1: // Data Column
+                    switch ($col['type']) {
+                    case "EURO":
+                        $col['type'] = "BIGINT";
+                        break;
+                    }
                     $query .= ", {$col['name']} {$col['type']}"; 
                     break;
                 case 3: // Foreign Key
-                    if ($col['type'] === "FOREIGN KEY") {
-                        $colName = "{$col['table']}_id";
-                        $query .= ", $colName BIGINT UNSIGNED";
-                        $fk .= ", FOREIGN KEY ($colName) REFERENCES {$col['table']}(id) ON DELETE SET NULL ON UPDATE CASCADE";
-                    }
+                    $colName = "{$col['table']}_id";
+                    $query .= ", $colName BIGINT UNSIGNED";
+                    $fk .= ", FOREIGN KEY ($colName) REFERENCES {$col['table']}(id) ON DELETE SET NULL ON UPDATE CASCADE";
                     break;
                 }
                 if (!empty($col['required']) && $col['required']) $query .= " NOT NULL";
@@ -365,7 +368,6 @@ class SqlDb {
                 "{$thisTable['name']}.modifieddate",
                 "{$thisTable['name']}.deleted"
             ];
-            $columnTypes = ['createdate' => "TIMESTAMP", 'modifieddate' => "TIMESTAMP"];
             $arrayColumns = [];
 
             $js = "";
@@ -373,7 +375,6 @@ class SqlDb {
                 switch ($column['class']) {
                 case 1:
                     $columns[] = "{$thisTable['name']}.{$column['name']}";
-                    $columnTypes[$column['name']] = $column['type'];
                     break;
                 }
             }
@@ -382,10 +383,6 @@ class SqlDb {
                 $columns[] = "{$table['name']}.createdate AS {$table['name']}_createdate";
                 $columns[] = "{$table['name']}.modifieddate AS {$table['name']}_modifieddate";
                 $columns[] = "{$table['name']}.deleted AS {$table['name']}_deleted";
-                $columnTypes["{$table['name']}_id"] = "INTEGER";
-                $columnTypes["{$table['name']}_createdate"] = "TIMESTAMP";
-                $columnTypes["{$table['name']}_modifieddate"] = "TIMESTAMP";
-                $columnTypes["{$table['name']}_deleted"] = "BOOLEAN";
                 switch ($table['reference']) {
                 case "left":
                     $js .= " LEFT JOIN {$table['name']} ON {$thisTable['name']}.{$table['name']}_id = {$table['name']}.id";
@@ -404,7 +401,6 @@ class SqlDb {
                     switch ($column['class']) {
                         case 1:
                         $columns[] = "{$table['name']}.{$column['name']} AS {$table['name']}_{$column['name']}";
-                        $columnTypes["{$table['name']}_{$column['name']}"] = $column['type'];
                         break;
                     }
                 }
@@ -436,24 +432,12 @@ class SqlDb {
                     // if this is not the first occurence and it is not an arraycolumn, skip it.
                     $arrayColumn = in_array($key, $arrayColumns);
                     if (!$firstOccurence && !$arrayColumn) continue; 
-                    $typedVal;
-                    if (strtoupper(substr($columnTypes[$key], 0, 3)) === "INT") {
-                        $typedVal = intval($val);
-                    } elseif (strtoupper(substr($columnTypes[$key], 0, 4)) === "BOOL") {
-                        $typedVal = filter_var($val, FILTER_VALIDATE_BOOLEAN);
-                    } elseif (
-                        strtoupper(substr($columnTypes[$key], 0, 7)) === "DECIMAL" ||
-                        strtoupper(substr($columnTypes[$key], 0, 6)) === "DOUBLE" 
-                    ) {
-                        $typedVal = floatval($val);
-                    } else {
-                        $typedVal = $val;
-                    }
+
                     if ($arrayColumn) { // these columns need to become arrays.
-                        if ($firstOccurence) $data[$row['id']][$key] = [$typedVal];
-                        else $data[$row['id']][$key][] = $typedVal;
+                        if ($firstOccurence) $data[$row['id']][$key] = [$val];
+                        else $data[$row['id']][$key][] = $val;
                     } else {
-                        $data[$row['id']][$key] = $typedVal;
+                        $data[$row['id']][$key] = $val;
                     }
                 }
             }

@@ -10,6 +10,7 @@ abstract class Column
     const MetaCol = 0;
     const DataCol = 1;
     const AutoCol = 2;
+    const ForeignKey = 3;
 }
 
 /**
@@ -97,6 +98,21 @@ class Database extends Page
     }
 
     /**
+     * get matching html unit symbol for sqlType
+     *
+     * @param $sqlType string
+     * @return string
+     */
+    public static function getSymbol($sqlType) 
+    {
+        if (
+            strtoupper(substr($sqlType, 0, 4)) === "EURO"
+        ) return "&euro;";
+
+        return "";
+    }
+
+    /**
      * generate script
      */
     public function getScript()
@@ -128,20 +144,26 @@ class Database extends Page
                     foreach ($this->dbInfo['tables'][$column['table']]['columns'] as $fcol) {
                         switch ($fcol['class']) {
                         case 1: // Data Column
+                            $symbol = $this->getSymbol($fcol['type']);
                             $tableColumns .= 
                                 "        {\n"
                                 ."           name: \"{$column['table']}_{$fcol['name']}\",\n"
-                                ."           class: 4,\n"
+                                ."           class: 4,\n" // Foreign Data Column
+                                ."           type: \"{$fcol['type']}\",\n"
+                                ."           symbol: \"$symbol\",\n"
                                 ."        },\n";
                         }
                     }
                 }
 
+                $symbol = $this->getSymbol($column['type']);
                 $tableColumns .=
                     "        {\n"
                     ."           name: \"{$name}\",\n"
                     ."           class: {$column['class']},\n"
                     ."           title: \"{$column['title']}\",\n"
+                    ."           type: \"{$column['type']}\",\n"
+                    ."           symbol: \"$symbol\",\n"
                     .$js
                     ."        },\n";
             }
