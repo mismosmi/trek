@@ -156,6 +156,16 @@ class Database extends Page
                     }
                 }
 
+                switch ($column['class']) {
+                case 1:
+                case 3:
+                    $required = $column['required'] 
+                        ? "           required: \"true\",\n"
+                        : "           required: \"false\",\n";
+                    break;
+                default:
+                    $required = "";
+                }
                 $symbol = $this->getSymbol($column['type']);
                 $tableColumns .=
                     "        {\n"
@@ -164,6 +174,7 @@ class Database extends Page
                     ."           title: \"{$column['title']}\",\n"
                     ."           type: \"{$column['type']}\",\n"
                     ."           symbol: \"$symbol\",\n"
+                    .$required
                     .$js
                     ."        },\n";
             }

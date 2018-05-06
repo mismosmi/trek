@@ -80,7 +80,7 @@ class TrekTableModel {
 
               if (type.startsWith('EURO')) return this.buffer[col.name] = Math.round(parseFloat(value) * (10**4));
 
-
+              this.bufferChanged = true;
               return this.buffer[col.name] = value;
             }
           });
@@ -100,7 +100,8 @@ class TrekTableModel {
             },
             set: (value) => {
               // foreign keys are always ints
-              this.buffer[col.name] = parseInt(value);
+              this.bufferChanged = true;
+              return this.buffer[col.name] = parseInt(value);
             }
           });
           break;
@@ -149,15 +150,13 @@ class TrekTableModel {
   edit(id) {
     if (id === 'new') this.buffer = {};
     else this.buffer = Object.assign({}, this[id]);
+    this.bufferChanged = false;
     this.currentId = id;
   }
 
   editDone() {
     this.buffer = undefined;
-  }
-
-  bufferChanged() {
-    return this.buffer = this[this.currentId];
+    this.bufferChanged = undefined;
   }
 
   sum(data) {
@@ -270,7 +269,17 @@ class TrekTableView {
         case 1: // Data Column
         case 3: // Foreign Key
           // add an input here
-          tr.innerHTML += `<td data-col="${col.name}" class="control"><input class="input" type="text" placeholder="${col.title}" value="${this.getTypedFormat(col)}" oninput="Trek.updateForm(this)"> ${col.symbol}</td>`;
+          const type = col.type.toUpperCase();
+          let inputtype = 'text';
+          if (
+            type.startsWith('INT') || 
+            type.startsWith('EURO') || 
+            type.startsWith('DOUBLE') || 
+            type.startsWith('REAL')
+          ) inputtype = 'number';
+
+          console.log('col.name: ',col.name,' col.required: ',col.required);
+          tr.innerHTML += `<td data-col="${col.name}" class="control"><input class="input${col.required === true ? ' required' : ''}" type="text" placeholder="${col.title}" value="${this.getTypedFormat(col)}" oninput="Trek.updateForm(this)"> ${col.symbol}</td>`;
           break;
         case 4: // Foreign Column
           break;
@@ -281,7 +290,7 @@ class TrekTableView {
 
     const controlTd = document.createElement('td');
     controlTd.classList.add('buttons','has-addons');
-    controlTd.innerHTML = `<span class="button is-link" id="trek-save" onclick="Trek.saveThis(this)">Save</span><span class="button" id="trek-cancel" onclick="Trek.cancelThis(this)">Cancel</span>`;
+    controlTd.innerHTML = `<span class="button is-link" id="trek-save" onclick="Trek.saveThis(this)" disabled>Save</span><span class="button" id="trek-cancel" onclick="Trek.cancelThis(this)">Cancel</span>`;
     if (id !== 'new') controlTd.innerHTML += `<span class="button is-danger" id="trek-delete" onclick="Trek.deleteThis(this)">Delete</span>`
     tr.appendChild(controlTd);
     return tr;
@@ -374,6 +383,12 @@ class TrekDatabase {
         }
       }
     });
+
+    // search patterns for validity checking
+    this.pattern = {
+      integer: /[0-9]*/,
+      float: /[0-9]*\.?[0-9]*/,
+    };
   }
 
   // trigger event when row is clicked
@@ -482,17 +497,52 @@ class TrekDatabase {
 
   // recalculate all the Auto Columns while editing the form
   updateForm(target) {
-    this.table.model[target.parentNode.getAttribute('data-col')] = target.value;
+    const colName = target.parentNode.getAttribute('data-col');
+
+    // form validation
+    const type = this.table.getColumnByName(colName).type.toUpperCase();
+    if (type.startsWith('INT')) {
+      const match = target.value.match(this.pattern.integer);
+      if (match === null || match[0] !== target.value) { // incorrect input
+        target.classList.add('is-danger');
+        target.value = match[0];
+      } else target.classList.remove('is-danger'); // correct input
+    } else if (
+      type.startsWith('DOUBLE') ||
+      type.startsWith('REAL') ||
+      type.startsWith('EURO')
+    ) {
+      const match = target.value.match(this.pattern.float);
+      if (match === null || match[0] !== target.value) { // incorrect input
+        target.classList.add('is-danger');
+        target.value = match[0];
+      } else target.classList.remove('is-danger'); // correct input
+    }
+        
+    
+    // recalculate Auto Columns
+    this.table.model[colName] = target.value;
     this.table.columns.forEach( (col) => {
       switch (col.class) {
         case 2: // Auto Column
-          this.formRow.querySelector('td[data-col="'+col.name+'"]')
-            .textContent = this.table.model[col.name];
+          const val = this.table.model[col.name];
+          const td = this.formRow.querySelector('td[data-col="'+col.name+'"]');
+          if (val !== td.textContent) {
+            td.textContent = val;
+          }
       }
     });
+
+
     // enable or disable save-button depending on whether data has been altered
-    if (this.table.model.buffer === this[this.currentId] || this.table.model.buffer === {}) this.formRow.querySelector('span#trek-save').disabled = true;
-    //else this.saveButton.disabled = false;
+    const inputIterator = this.formRow.querySelectorAll('input.required').values();
+    let requiredFieldsFilled = true;
+    this.formRow.querySelectorAll('input.required').forEach( (input) => {
+      if (input.value === "") requiredFieldsFilled = false;
+    });
+
+    if (requiredFieldsFilled) this.formRow.querySelector('span#trek-save').removeAttribute('disabled');
+    else this.formRow.querySelector('span#trek-save').setAttribute('disabled', true);
   }
 
   // general ajax settings and error handling
