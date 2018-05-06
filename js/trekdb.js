@@ -130,11 +130,20 @@ class TrekTableModel {
   // Loop over all Rows
   forAll(doThis) {
     Object.keys(this).forEach( (key) => {
-      index = parseInt(key);
+      const index = parseInt(key);
       if (!isNaN(index)) {
         doThis(this[key],index);
       }
     });
+  }
+
+  // Loop over all rows in descending order
+  forAllDesc(doThis) {
+    for (var index = this.getMaxIndex(); index > 0; index--) {
+      if (this[index] !== undefined) {
+        doThis(this[index], index);
+      }
+    }
   }
 
   // Loop over rows up to currentId
@@ -279,7 +288,7 @@ class TrekTableView {
           ) inputtype = 'number';
 
           console.log('col.name: ',col.name,' col.required: ',col.required);
-          tr.innerHTML += `<td data-col="${col.name}" class="control"><input class="input${col.required === true ? ' required' : ''}" type="text" placeholder="${col.title}" value="${this.getTypedFormat(col)}" oninput="Trek.updateForm(this)"> ${col.symbol}</td>`;
+          tr.innerHTML += `<td data-col="${col.name}" class="control"><input class="input${col.required === true ? ' required' : ''}" type="text" placeholder="${col.title}" value="${this.getTypedFormat(col)}" oninput="Trek.updateForm(this)" onfocusin="Trek.makeSuggestion(this)" onfocusout="Trek.cancelSuggestion(this)"> ${col.symbol}</td>`;
           break;
         case 4: // Foreign Column
           break;
@@ -349,6 +358,7 @@ class TrekDatabase {
 
     // add Keyboard shortcuts
     document.addEventListener('keydown', (event) => {
+      //console.log(event.key);
       if (this.formRow === undefined) { // no active form
         switch (event.key) {
           case 'Enter':
@@ -373,13 +383,36 @@ class TrekDatabase {
           }
         }
       } else { // active form
-        switch (event.key) {
-          case 'Enter':
-            this.saveThis(this.formRow.querySelector('span#trek-save'));
-            break;
-          case 'Escape':
-            this.cancelThis();
-            break;
+        if (this.suggestion === undefined) { // no active suggestion
+          switch (event.key) {
+            case 'Enter':
+              this.saveThis(this.formRow.querySelector('span#trek-save'));
+              break;
+            case 'Escape':
+              this.cancelThis();
+              break;
+          }
+        } else { // active suggestion
+          let target = this.suggestion.table.querySelector('.is-active');
+          switch (event.key) {
+            case 'Escape':
+              this.cancelSuggestion();
+              break;
+            case 'ArrowDown':
+              if (target === null) target = this.suggestion.table.firstChild;
+              target.classList.remove('is-active');
+              target.nextSibling.classList.add('is-active');
+              break;
+            case 'ArrowUp':
+              if (target === null) target = this.suggestion.table.lastChild;
+              target.classList.remove('is-active');
+              target.previousSibling.classList.add('is-active');
+              break;
+            case 'Enter':
+              if (target === null) this.cancelSuggestion();
+              else this.acceptSuggestion(target);
+              break;
+          }
         }
       }
     });
@@ -545,6 +578,97 @@ class TrekDatabase {
     else this.formRow.querySelector('span#trek-save').setAttribute('disabled', true);
   }
 
+  makeSuggestion(target) {
+    const col = this.table.getColumnByName(target.parentNode.getAttribute('data-col'));
+    this.suggestion = {
+      target: target,
+      box: document.createElement('div'),
+      table: document.createElement('table')
+    }
+    this.suggestion.box.classList.add('box', 'suggestion', 'is-paddingless');
+    this.suggestion.table.classList.add('table');
+    this.suggestion.box.appendChild(this.suggestion.table);
+    this.suggestion.box.style.position = 'absolute';
+    
+
+    // only do this for text-type data columns or foreign key columns
+    if (col.class === 3) {
+      this.suggestion.box.classList.add('is-loading');
+      this.suggestion.columns = this.tableColumns[col.table];
+      this.selectSuggestion(
+        col.table, 
+        () => { // onSuccess
+          this.idSuggestion(target.value);
+          this.suggestion.box.classList.remove('is-loading');
+        }
+      );
+    } else if (col.class === 1 && col.type.toUpperCase().startsWith('VARCHAR')) {
+      this.textSuggestion(target.value, col.name);     
+    } else return;
+
+    target.insertAdjacentElement('afterend', this.suggestion.box);
+  }
+
+  textSuggestion(value, colName) {
+    const result = new Set();
+    this.table.model.forAllDesc( (row) => {
+      if (
+        row[colName] !== '' &&
+        row[colName].indexOf(value) !== -1
+      ) {
+        result.add(row[colName]);
+      }
+    });
+    result.forEach( (value) => {
+      const tr = document.createElement('tr');
+      tr.setAttribute('data-suggestion', value);
+      tr.innerHTML = `<td>${value}</td>`;
+      tr.addEventListener('click', (event) => {
+        console.log(event);
+        Trek.acceptSuggestion(event.currentTarget);
+      });
+      this.suggestion.table.appendChild(tr);
+    });
+  }
+
+  idSuggestion(value) {
+    this.suggestionModel.forAllDesc( (row, id) => {
+      if (id.toString().startsWith(value)) {
+        const tr = document.createElement('tr');
+        tr.setAttribute('data-suggestion', id);
+        this.suggestion.columns.forEach( (col) => {
+          switch (col.class) {
+            case 0: // Meta Column
+              if (col.name === 'id') tr.innerHTML += `<td>${id}</td>`;
+              break;
+            case 1: // Data Column
+              tr.innerHTML += `<td>${row[col.name]}</td>`;
+              break;
+          }
+        });
+        tr.addEventListener('click', (event) => {
+          Trek.acceptSuggestion(event.currentTarget);
+        });
+        this.suggestion.table.appendChild(tr);
+      }
+    });
+  }
+
+  acceptSuggestion(target) {
+    consolt.log(target);
+    this.suggestion.target.value = target.getAttribute('data-suggestion');
+    this.suggestion.box.remove();
+    this.suggestion = undefined;
+  }
+
+  cancelSuggestion() {
+    this.suggestion.target.value = '';
+    this.suggestion.box.remove();
+    this.suggestion = undefined;
+  }
+
+
+
   // general ajax settings and error handling
   ajaxRequest(data, onSuccess, onError) {
     console.log('ajax request, url: ', this.ajaxUrl, ' data: ', data);
@@ -596,6 +720,17 @@ class TrekDatabase {
         url.searchParams.set('table', this.tableName);
         window.history.pushState(response.data, '', url.pathname + url.search);
       },
+    );
+  }
+
+  selectSuggestion(tableName, onSuccess, onError) {
+    this.ajaxRequest(
+      {operation: 'SELECT', tableName: tableName},
+      (response) => { // onSuccess
+        this.suggestion.model = new TrekTableModel(this.tableColumns[tableName], response.data);
+        onSuccess();
+      },
+      onError
     );
   }
 

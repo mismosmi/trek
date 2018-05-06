@@ -123,10 +123,6 @@ class Database extends Page
             $tableColumns .= 
                  "      '$tableName': [\n";
             foreach ($table['columns'] as $column) {
-                $name = ($column['class'] === 3) 
-                    ? "{$column['table']}_id"
-                    : $column['name'];
-
                 $js = "";
                 if ($column['class'] === 2) {
                     $js .= "           run: function(tv) {\n";
@@ -156,16 +152,20 @@ class Database extends Page
                     }
                 }
 
-                switch ($column['class']) {
-                case 1:
-                case 3:
+                if ($column['class'] === 1 || $column['class'] === 3) {
                     $required = $column['required'] 
                         ? "           required: \"true\",\n"
                         : "           required: \"false\",\n";
-                    break;
-                default:
-                    $required = "";
+                } else $required = "";
+
+                if ($column['class'] === 3) {
+                    $name = "{$column['table']}_id";
+                    $table = "           table: \"{$column['table']}\",\n";
+                } else {
+                    $name = $column['name'];
+                    $table = "";
                 }
+
                 $symbol = $this->getSymbol($column['type']);
                 $tableColumns .=
                     "        {\n"
