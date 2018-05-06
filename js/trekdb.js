@@ -99,7 +99,8 @@ class TrekTableModel {
               return (this[this.currentId][col.name]) ? this[this.currentId][col.name] : '';
             },
             set: (value) => {
-              this.buffer[col.name] = value;
+              // foreign keys are always ints
+              this.buffer[col.name] = parseInt(value);
             }
           });
           break;
@@ -280,8 +281,8 @@ class TrekTableView {
 
     const controlTd = document.createElement('td');
     controlTd.classList.add('buttons','has-addons');
-    controlTd.innerHTML = `<span class="button is-link" onclick="Trek.saveThis(this)">Save</span><span class="button" onclick="Trek.cancelThis(this)">Cancel</span>`;
-    if (id !== 'new') controlTd.innerHTML += `<span class="button is-danger" onclick="Trek.deleteThis(this)">Delete</span>`
+    controlTd.innerHTML = `<span class="button is-link" id="trek-save" onclick="Trek.saveThis(this)">Save</span><span class="button" id="trek-cancel" onclick="Trek.cancelThis(this)">Cancel</span>`;
+    if (id !== 'new') controlTd.innerHTML += `<span class="button is-danger" id="trek-delete" onclick="Trek.deleteThis(this)">Delete</span>`
     tr.appendChild(controlTd);
     return tr;
   }
@@ -336,15 +337,43 @@ class TrekDatabase {
         this.enterEditMode();
       }
     });
+
     // add Keyboard shortcuts
-    //document.addEventListener('keydown', (event) => {
-    //  const activeElement = document.activeElement;
-    //  if (activeElement.nodeName === 'INPUT' && activeElement.parentNode.) {
-    //    switch (event.key) {
-    //      case 'Enter':
-    //    }
-    //  }
-    //});
+    document.addEventListener('keydown', (event) => {
+      if (this.formRow === undefined) { // no active form
+        switch (event.key) {
+          case 'Enter':
+            this.table.model.edit('new');
+            this.formRow = this.table.getFormRow('new');
+            this.table.body.replaceChild(this.formRow, document.getElementById('new'));
+            const input = this.formRow.querySelector('input');
+            if (input !== null) input.focus();
+            break;
+        }
+        if (this.editMode) { // edit mode, no active form
+          switch (event.key) {
+            case 'Escape':
+              this.exitEditMode();
+              break;
+          }
+        } else { // no edit mode, no active form
+          switch (event.key) {
+            case 'e':
+              this.enterEditMode();
+              break;
+          }
+        }
+      } else { // active form
+        switch (event.key) {
+          case 'Enter':
+            this.saveThis(this.formRow.querySelector('span#trek-save'));
+            break;
+          case 'Escape':
+            this.cancelThis();
+            break;
+        }
+      }
+    });
   }
 
   // trigger event when row is clicked
@@ -462,7 +491,7 @@ class TrekDatabase {
       }
     });
     // enable or disable save-button depending on whether data has been altered
-    //if (this.table.model.buffer === this[this.currentId] || this.table.model.buffer === {}) this.saveButton.disabled = true;
+    if (this.table.model.buffer === this[this.currentId] || this.table.model.buffer === {}) this.formRow.querySelector('span#trek-save').disabled = true;
     //else this.saveButton.disabled = false;
   }
 

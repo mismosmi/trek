@@ -34,6 +34,12 @@
                     "type": "INTEGER"
                 },
                 {
+                    "name": "currencycolumn",
+                    "title": "Currency Column",
+                    "class": 1,
+                    "type": "EURO"
+                },
+                {
                     "name": "autocolumn",
                     "title": "Auto Column",
                     "class": 2,
@@ -98,6 +104,12 @@
                     "name": "integercolumn",
                     "title": "Integer Column",
                     "type": "INTEGER",
+                    "class": 1
+                },
+                {
+                    "name": "floatcolumn",
+                    "title": "Floating Point Column",
+                    "type": "DOUBLE",
                     "class": 1
                 }
             ]
