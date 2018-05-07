@@ -174,6 +174,7 @@ class Database extends Page
                     ."           title: \"{$column['title']}\",\n"
                     ."           type: \"{$column['type']}\",\n"
                     ."           symbol: \"$symbol\",\n"
+                    .$table
                     .$required
                     .$js
                     ."        },\n";

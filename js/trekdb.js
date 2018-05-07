@@ -287,8 +287,10 @@ class TrekTableView {
             type.startsWith('REAL')
           ) inputtype = 'number';
 
+          const handleSuggestion = inputtype === 'text' ? ` onfocusin="Trek.makeSuggestion(this)" onfocusout="Trek.closeSuggestion(this)"` : '';
+
           console.log('col.name: ',col.name,' col.required: ',col.required);
-          tr.innerHTML += `<td data-col="${col.name}" class="control"><input class="input${col.required === true ? ' required' : ''}" type="text" placeholder="${col.title}" value="${this.getTypedFormat(col)}" oninput="Trek.updateForm(this)" onfocusin="Trek.makeSuggestion(this)" onfocusout="Trek.cancelSuggestion(this)"> ${col.symbol}</td>`;
+          tr.innerHTML += `<td data-col="${col.name}" class="control"><input class="input${col.required === true ? ' required' : ''}" type="text" placeholder="${col.title}" value="${this.getTypedFormat(col)}" oninput="Trek.updateForm(this)"${handleSuggestion}> ${col.symbol}</td>`;
           break;
         case 4: // Foreign Column
           break;
@@ -391,26 +393,25 @@ class TrekDatabase {
             case 'Escape':
               this.cancelThis();
               break;
+            case 'ArrowDown':
+              const activeElement = document.activeElement;
+              if (activeElement.nodeName === 'INPUT') this.makeSuggestion(document.activeElement, '');
+              break;
           }
         } else { // active suggestion
-          let target = this.suggestion.table.querySelector('.is-active');
           switch (event.key) {
             case 'Escape':
-              this.cancelSuggestion();
+              this.suggestion.box.parentNode.removeChild(this.suggestion.box);
+              this.suggestion = undefined;
               break;
             case 'ArrowDown':
-              if (target === null) target = this.suggestion.table.firstChild;
-              target.classList.remove('is-active');
-              target.nextSibling.classList.add('is-active');
+              this.chooseSuggestion(this.suggestion.current.nextSibling);
               break;
             case 'ArrowUp':
-              if (target === null) target = this.suggestion.table.lastChild;
-              target.classList.remove('is-active');
-              target.previousSibling.classList.add('is-active');
+              this.chooseSuggestion(this.suggestion.current.previousSibling);
               break;
             case 'Enter':
-              if (target === null) this.cancelSuggestion();
-              else this.acceptSuggestion(target);
+              this.acceptSuggestion(this.suggestion.current);
               break;
           }
         }
@@ -530,10 +531,10 @@ class TrekDatabase {
 
   // recalculate all the Auto Columns while editing the form
   updateForm(target) {
-    const colName = target.parentNode.getAttribute('data-col');
+    const col = this.table.getColumnByName(target.parentNode.getAttribute('data-col'));
 
     // form validation
-    const type = this.table.getColumnByName(colName).type.toUpperCase();
+    const type = col.type.toUpperCase();
     if (type.startsWith('INT')) {
       const match = target.value.match(this.pattern.integer);
       if (match === null || match[0] !== target.value) { // incorrect input
@@ -554,7 +555,7 @@ class TrekDatabase {
         
     
     // recalculate Auto Columns
-    this.table.model[colName] = target.value;
+    this.table.model[col.name] = target.value;
     this.table.columns.forEach( (col) => {
       switch (col.class) {
         case 2: // Auto Column
@@ -576,19 +577,33 @@ class TrekDatabase {
 
     if (requiredFieldsFilled) this.formRow.querySelector('span#trek-save').removeAttribute('disabled');
     else this.formRow.querySelector('span#trek-save').setAttribute('disabled', true);
+
+    // update suggestions
+    if (this.suggestion === undefined) this.makeSuggestion(target);
+    else {
+      this.suggestion.table.innerHTML = '';
+      if (col.class === 3) this.suggestId(target.value);
+      else if (col.class === 1 && type.startsWith('VARCHAR')) this.suggestText(target.value, col.name);
+    }
+
   }
 
-  makeSuggestion(target) {
+  makeSuggestion(target, value) {
+    if (typeof value === 'undefined') value = target.value;
     const col = this.table.getColumnByName(target.parentNode.getAttribute('data-col'));
     this.suggestion = {
       target: target,
       box: document.createElement('div'),
-      table: document.createElement('table')
+      table: document.createElement('table'),
+      hasMouse: false
     }
     this.suggestion.box.classList.add('box', 'suggestion', 'is-paddingless');
-    this.suggestion.table.classList.add('table');
+    this.suggestion.table.classList.add('table','is-hoverable');
     this.suggestion.box.appendChild(this.suggestion.table);
     this.suggestion.box.style.position = 'absolute';
+    this.suggestion.table.addEventListener('mouseleave', (event) => {
+      this.suggestion.hasMouse = false;
+    });
     
 
     // only do this for text-type data columns or foreign key columns
@@ -598,42 +613,49 @@ class TrekDatabase {
       this.selectSuggestion(
         col.table, 
         () => { // onSuccess
-          this.idSuggestion(target.value);
+          this.suggestId(value);
           this.suggestion.box.classList.remove('is-loading');
         }
       );
     } else if (col.class === 1 && col.type.toUpperCase().startsWith('VARCHAR')) {
-      this.textSuggestion(target.value, col.name);     
+      this.suggestText(value, col.name);     
     } else return;
 
     target.insertAdjacentElement('afterend', this.suggestion.box);
   }
 
-  textSuggestion(value, colName) {
-    const result = new Set();
+  suggestText(search, colName) {
+    const filteredResults = new Set();
     this.table.model.forAllDesc( (row) => {
       if (
         row[colName] !== '' &&
-        row[colName].indexOf(value) !== -1
+        row[colName].indexOf(search) !== -1
       ) {
-        result.add(row[colName]);
+        filteredResults.add(row[colName]);
       }
     });
-    result.forEach( (value) => {
+    filteredResults.forEach( (result) => {
       const tr = document.createElement('tr');
-      tr.setAttribute('data-suggestion', value);
-      tr.innerHTML = `<td>${value}</td>`;
+      tr.setAttribute('data-suggestion', result);
+      const index = result.indexOf(search);
+      tr.innerHTML = `<td>${result.slice(0, index)}<b>${search}</b>${result.slice(index + search.length)}</td>`;
       tr.addEventListener('click', (event) => {
         console.log(event);
         Trek.acceptSuggestion(event.currentTarget);
       });
+      tr.addEventListener('mousemove', (event) => {
+        Trek.chooseSuggestion(event.currentTarget);
+      });
       this.suggestion.table.appendChild(tr);
     });
+    this.suggestion.current = this.suggestion.table.firstChild;
+    this.suggestion.current.classList.add('has-background-primary');
   }
 
-  idSuggestion(value) {
-    this.suggestionModel.forAllDesc( (row, id) => {
-      if (id.toString().startsWith(value)) {
+  suggestId(value) {
+    this.suggestion.model.forAllDesc( (row, id) => {
+      const idStr = id.toString();
+      if (idStr.startsWith(value)) {
         const tr = document.createElement('tr');
         tr.setAttribute('data-suggestion', id);
         this.suggestion.columns.forEach( (col) => {
@@ -642,31 +664,41 @@ class TrekDatabase {
               if (col.name === 'id') tr.innerHTML += `<td>${id}</td>`;
               break;
             case 1: // Data Column
-              tr.innerHTML += `<td>${row[col.name]}</td>`;
+              tr.innerHTML += `<td><b>${value}</b>${row[col.name].slice(value.length)}</td>`;
               break;
           }
         });
         tr.addEventListener('click', (event) => {
           Trek.acceptSuggestion(event.currentTarget);
         });
+        tr.addEventListener('mousemove', (event) => {
+          Trek.chooseSuggestion(event.currentTarget);
+        });
         this.suggestion.table.appendChild(tr);
       }
     });
+    this.suggestion.current = this.suggestion.table.firstChild;
+    this.suggestion.current.classList.add('has-background-primary');
   }
 
   acceptSuggestion(target) {
-    consolt.log(target);
     this.suggestion.target.value = target.getAttribute('data-suggestion');
-    this.suggestion.box.remove();
+    this.suggestion.box.parentNode.removeChild(this.suggestion.box);
     this.suggestion = undefined;
   }
 
-  cancelSuggestion() {
-    this.suggestion.target.value = '';
-    this.suggestion.box.remove();
-    this.suggestion = undefined;
+  closeSuggestion() {
+    if (this.suggestion.hasMouse === false) {
+      this.suggestion.box.parentNode.removeChild(this.suggestion.box);
+      this.suggestion = undefined;
+    }
   }
 
+  chooseSuggestion(target) {
+    this.suggestion.current.classList.remove('has-background-primary');
+    this.suggestion.current = target;
+    target.classList.add('has-background-primary');
+  }
 
 
   // general ajax settings and error handling
