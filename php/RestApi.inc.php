@@ -47,6 +47,19 @@ class RestApi extends SqlDb
         $this->dbInfo = json_decode(file_get_contents(PHP_ROOT.$this->config['pages'][$dbName]['path']), true);
     }
 
+    /**
+     * check if this tables gets its columns from another table via column_reference
+     *
+     * @param string tableName  Name of requested Table
+     * @return array columns
+     */
+    private function getColumns($tableName)
+    {
+        if (array_key_exists("column_reference", $this->dbInfo['tables'][$tableName])) 
+            return $this->dbInfo['tables'][$this->dbInfo['tables'][$tableName]['column_reference']]['columns'];
+        return $this->dbInfo['tables'][$tableName]['columns'];
+    }
+
         
     /**
      * check if keys exists in table[col] to prevent sql injection attack
@@ -58,7 +71,7 @@ class RestApi extends SqlDb
     private function validateTableKeys($tableName, array $data)
     {
         $dataChecked = [];
-        foreach ($this->dbInfo['tables'][$tableName]['columns'] as $col) {
+        foreach ($this->getColumns($tableName) as $col) {
             switch ($col['class']) {
             case 1: // Data Column
                 if (array_key_exists($col['name'], $data))
@@ -109,7 +122,7 @@ class RestApi extends SqlDb
         if ($postData['operation'] === "SELECT" || $ret['success']) {
             $thisTable = ['name' => $postData['tableName'], 'columns' => []];
             $joinTables = [];
-            foreach ($this->dbInfo['tables'][$postData['tableName']]['columns'] as $col) {
+            foreach ($this->getColumns($postData['tableName']) as $col) {
                 switch ($col['class']) {
                 case 1: // Data Column
                     $thisTable['columns'][] = $col;
@@ -117,7 +130,7 @@ class RestApi extends SqlDb
                 case 2: // Auto Column
                     if (array_key_exists('table', $col)) {
                         $joinTable = ['name' => $col['table'], 'columns' => [], 'reference' => "right"];
-                        foreach ($this->dbInfo['tables'][$col['table']]['columns'] as $fcol) {
+                        foreach ($this->getColumns($col['table']) as $fcol) {
                             switch ($fcol['class']) {
                             case 1: // Data Column
                                 $joinTable['columns'][] = $fcol;
@@ -128,7 +141,7 @@ class RestApi extends SqlDb
                     break;
                 case 3: // Foreign Key
                     $joinTable = ['name' => $col['table'], 'columns' => [], 'reference' => "left"];
-                    foreach ($this->dbInfo['tables'][$col['table']]['columns'] as $fcol) {
+                    foreach ($this->getColumns($col['table']) as $fcol) {
                         switch ($fcol['class']) {
                         case 1: // Data Column
                             $joinTable['columns'][] = $fcol;
@@ -148,10 +161,10 @@ class RestApi extends SqlDb
                 if (empty($postData['lastUpdate'])) {
                     $createmsg = "";
                     foreach ($joinTables as $table) {
-                        $create = $this->dbCreateTable($table['name'], $this->dbInfo['tables'][$table['name']]['columns']);
+                        $create = $this->dbCreateTable($table['name'], $this->getColumns($table['name']));
                         $createmsg .= ($create['success'] ? $create['info'] : $create['errormsg'])."\n";
                     }
-                    $create = $this->dbCreateTable($thisTable['name'], $this->dbInfo['tables'][$thisTable['name']]['columns']);
+                    $create = $this->dbCreateTable($thisTable['name'], $this->getColumns($thisTable['name']));
                     $createmsg .= ($create['success'] ? $create['info'] : $create['errormsg']);
                     $ret = $this->dbSelectJoin($thisTable, $joinTables);
                     if ($ret['success']) $ret['info'] = $createmsg;

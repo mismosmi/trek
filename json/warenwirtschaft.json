@@ -2,12 +2,62 @@
     "name": "warenwirtschaft",
     "title": "Warenwirtschaft",
     "tables": {
+        "product": {
+            "title": "Produkte",
+            "columns": [
+                {
+                    "name": "id",
+                    "title": "Produkt ID",
+                    "class": 0
+                },
+                {
+                    "name": "category",
+                    "title": "Kategorie",
+                    "class": 1,
+                    "type": "VARCHAR(30)"
+                },
+                {
+                    "name": "name",
+                    "title": "Produktname",
+                    "class": 1,
+                    "type": "VARCHAR(30)",
+                    "required": true
+                },
+                {
+                    "name": "unitprice",
+                    "title": "Preis/Einheit",
+                    "class": 1,
+                    "type": "EURO",
+                    "required": true
+                },
+                {
+                    "name": "unit",
+                    "title": "Teile/Einheit",
+                    "class": 1,
+                    "type": "INTEGER",
+                    "default": 1
+                },
+                {
+                    "name": "pieceprice",
+                    "title": "Preis/Teil",
+                    "class": 2,
+                    "type": "EURO",
+                    "js": "tv.unitprice * tv.unit"
+                },
+                {
+                    "name": "notes",
+                    "title": "Notizen",
+                    "class": 1,
+                    "type": "VARCHAR(30)"
+                }
+            ]
+        },
         "project": {
             "title": "Projekte",
             "columns": [
                 {
                     "name": "id",
-                    "title": "Projekt-ID",
+                    "title": "Projekt ID",
                     "class": 0
                 },
                 {
@@ -57,7 +107,7 @@
                     "title": "Budget Ausgegeben",
                     "class": 2,
                     "js": "tv.sum(tv.order_sum)",
-                    "table": "order"
+                    "table": "outgoing"
                 },
                 {
                     "name": "budgetleft",
@@ -73,7 +123,7 @@
                 }
             ]
         },
-        "order": {
+        "incoming": {
             "title": "Wareneingang",
             "columns": [
                 {
@@ -123,65 +173,20 @@
                 }
             ]
         },
-        "delivery": {
+        "outgoing": {
             "title": "Warenausgang",
-            "column_reference": "order"
+            "column_reference": "incoming"
         },
-        "product": {
-            "title": "Produkte",
-            "columns": [
-                {
-                    "name": "id",
-                    "title": "Produkt ID",
-                    "class": 0
-                },
-                {
-                    "name": "category",
-                    "title": "Kategorie",
-                    "class": 1,
-                    "type": "VARCHAR(30)"
-                },
-                {
-                    "name": "name",
-                    "title": "Produktname",
-                    "class": 1,
-                    "type": "VARCHAR(30)",
-                    "required": true
-                },
-                {
-                    "name": "unitprice",
-                    "title": "Preis/Einheit",
-                    "class": 1,
-                    "type": "EURO",
-                    "required": true
-                },
-                {
-                    "name": "unit",
-                    "title": "Teile/Einheit",
-                    "class": 1,
-                    "type": "INTEGER",
-                    "default": 1
-                },
-                {
-                    "name": "pieceprice",
-                    "title": "Preis/Teil",
-                    "class": 2,
-                    "js": "tv.unitprice * tv.unit"
-                },
-                {
-                    "name": "notes",
-                    "title": "Notizen",
-                    "class": 1,
-                    "type": "VARCHAR(30)"
-                }
-            ]
+        "retoure": {
+            "title": "Retouren",
+            "column_reference": "incoming"
         }
-
     },
     "order": [
-        "project",
         "product",
-        "order",
-        "delivery"
+        "project",
+        "incoming",
+        "outgoing",
+        "retoure"
     ]
 }

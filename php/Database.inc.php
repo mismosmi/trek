@@ -69,13 +69,26 @@ class Database extends Page
     }
 
     /**
+     * check if this tables gets its columns from another table via column_reference
+     *
+     * @param string tableName  Name of requested Table
+     * @return array columns
+     */
+    private function getColumns($tableName)
+    {
+        if (array_key_exists("column_reference", $this->dbInfo['tables'][$tableName])) 
+            return $this->dbInfo['tables'][$this->dbInfo['tables'][$tableName]['column_reference']]['columns'];
+        return $this->dbInfo['tables'][$tableName]['columns'];
+    }
+
+    /**
      * generate html table with necessary id
      *
      * @return string <table> tag
      */
     public function getTable()
     {
-        return "<form id=\"trek-form\" onsubmit=\"Trek.submit(this)\"><table class=\"table\" id=\"trek-table\"><thead></thead><tbody></tbody></table></form>\n";
+        return "<table class=\"table\" id=\"trek-table\"><thead></thead><tbody></tbody></table>\n";
     }
 
     /**
@@ -119,10 +132,10 @@ class Database extends Page
     {
         $tableColumns = '';
         foreach ($this->dbInfo['order'] as $tableName) {
-            $table = $this->dbInfo['tables'][$tableName];
+            //$table = $this->dbInfo['tables'][$tableName];
             $tableColumns .= 
                  "      '$tableName': [\n";
-            foreach ($table['columns'] as $column) {
+            foreach ($this->getColumns($tableName) as $column) {
                 $js = "";
                 if ($column['class'] === 2) {
                     $js .= "           run: function(tv) {\n";
@@ -137,7 +150,7 @@ class Database extends Page
                     }
                 }
                 if ($column['class'] === 3 || ($column['class'] === 2 && array_key_exists('table', $column))) {
-                    foreach ($this->dbInfo['tables'][$column['table']]['columns'] as $fcol) {
+                    foreach ($this->getColumns($column['table']) as $fcol) {
                         switch ($fcol['class']) {
                         case 1: // Data Column
                             $symbol = $this->getSymbol($fcol['type']);
@@ -154,8 +167,8 @@ class Database extends Page
 
                 if ($column['class'] === 1 || $column['class'] === 3) {
                     $required = $column['required'] 
-                        ? "           required: \"true\",\n"
-                        : "           required: \"false\",\n";
+                        ? "           required: true,\n"
+                        : "           required: false,\n";
                 } else $required = "";
 
                 if ($column['class'] === 3) {

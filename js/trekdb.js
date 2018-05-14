@@ -127,7 +127,8 @@ class TrekTableModel {
     return max;
   }
 
-  // Loop over all Rows
+  // Loop over all Rows where Order does not matter
+  // might be faster then iterating in ascending or descending order especially for large datasets
   forAll(doThis) {
     Object.keys(this).forEach( (key) => {
       const index = parseInt(key);
@@ -135,6 +136,15 @@ class TrekTableModel {
         doThis(this[key],index);
       }
     });
+  }
+
+  // Loop over all rows in ascending order
+  forAllAsc(doThis) {
+    for (var index = 1; index <= this.getMaxIndex(); index++) {
+      if (this[index] !== undefined) {
+        doThis(this[index], index);
+      }
+    }
   }
 
   // Loop over all rows in descending order
@@ -288,9 +298,10 @@ class TrekTableView {
           ) inputtype = 'number';
 
           const handleSuggestion = inputtype === 'text' ? ` onfocusin="Trek.makeSuggestion(this)" onfocusout="Trek.closeSuggestion(this)"` : '';
+          const isRequired = col.required === true ? ' required' : '';
 
           console.log('col.name: ',col.name,' col.required: ',col.required);
-          tr.innerHTML += `<td data-col="${col.name}" class="control"><input class="input${col.required === true ? ' required' : ''}" type="text" placeholder="${col.title}" value="${this.getTypedFormat(col)}" oninput="Trek.updateForm(this)"${handleSuggestion}> ${col.symbol}</td>`;
+          tr.innerHTML += `<td data-col="${col.name}" class="control"><input class="input${isRequired}" type="text" placeholder="${col.title}" value="${this.getTypedFormat(col)}" oninput="Trek.updateForm(this)"${handleSuggestion}> ${col.symbol}</td>`;
           break;
         case 4: // Foreign Column
           break;
@@ -366,6 +377,7 @@ class TrekDatabase {
           case 'Enter':
             this.table.model.edit('new');
             this.formRow = this.table.getFormRow('new');
+            this.formRow.saveButton = this.formRow.querySelector('span#trek-save');
             this.table.body.replaceChild(this.formRow, document.getElementById('new'));
             const input = this.formRow.querySelector('input');
             if (input !== null) input.focus();
@@ -388,14 +400,14 @@ class TrekDatabase {
         if (this.suggestion === undefined) { // no active suggestion
           switch (event.key) {
             case 'Enter':
-              this.saveThis(this.formRow.querySelector('span#trek-save'));
+              this.saveThis(this.formRow.saveButton);
               break;
             case 'Escape':
               this.cancelThis();
               break;
             case 'ArrowDown':
               const activeElement = document.activeElement;
-              if (activeElement.nodeName === 'INPUT') this.makeSuggestion(document.activeElement, '');
+              if (activeElement.nodeName === 'INPUT') this.makeSuggestion(activeElement, '');
               break;
           }
         } else { // active suggestion
@@ -411,6 +423,7 @@ class TrekDatabase {
               this.chooseSuggestion(this.suggestion.current.previousSibling);
               break;
             case 'Enter':
+              console.log('Enter, suggestion: ',this.suggestion);
               this.acceptSuggestion(this.suggestion.current);
               break;
           }
@@ -436,6 +449,7 @@ class TrekDatabase {
       this.table.model.edit(event.currentTarget.id);
       // replace row content with edit-form
       this.formRow = this.table.getFormRow(event.currentTarget.id);
+      this.formRow.saveButton = this.formRow.querySelector('span#trek-save');
       this.table.body.replaceChild(this.formRow, event.currentTarget);
       // find input in the right column if there is one and focus it
       let input = this.formRow.querySelector('td[data-col="'+targetColumn+'"] input');
@@ -531,10 +545,10 @@ class TrekDatabase {
 
   // recalculate all the Auto Columns while editing the form
   updateForm(target) {
-    const col = this.table.getColumnByName(target.parentNode.getAttribute('data-col'));
+    const column = this.table.getColumnByName(target.parentNode.getAttribute('data-col'));
 
     // form validation
-    const type = col.type.toUpperCase();
+    const type = column.type.toUpperCase();
     if (type.startsWith('INT')) {
       const match = target.value.match(this.pattern.integer);
       if (match === null || match[0] !== target.value) { // incorrect input
@@ -555,7 +569,7 @@ class TrekDatabase {
         
     
     // recalculate Auto Columns
-    this.table.model[col.name] = target.value;
+    this.table.model[column.name] = target.value;
     this.table.columns.forEach( (col) => {
       switch (col.class) {
         case 2: // Auto Column
@@ -568,23 +582,31 @@ class TrekDatabase {
     });
 
 
+    // update suggestions
+    if (this.suggestion !== undefined) {
+      this.suggestion.table.innerHTML = '';
+      if (column.class === 3) {
+        if (this.suggestId(target.value)) {
+          this.formRow.saveButton.removeAttribute('disabled');
+          target.classList.remove('is-danger');
+        } else {
+          this.formRow.saveButton.setAttribute('disabled', true);
+          target.classList.add('is-danger');
+        }
+      } else if (column.class === 1 && type.startsWith('VARCHAR')) this.suggestText(target.value, column.name);
+    }
+
     // enable or disable save-button depending on whether data has been altered
     const inputIterator = this.formRow.querySelectorAll('input.required').values();
     let requiredFieldsFilled = true;
+    console.log('required fields:',this.formRow.querySelectorAll('input.required'));
     this.formRow.querySelectorAll('input.required').forEach( (input) => {
+      console.log('field: ',input);
       if (input.value === "") requiredFieldsFilled = false;
     });
 
-    if (requiredFieldsFilled) this.formRow.querySelector('span#trek-save').removeAttribute('disabled');
-    else this.formRow.querySelector('span#trek-save').setAttribute('disabled', true);
-
-    // update suggestions
-    if (this.suggestion === undefined) this.makeSuggestion(target);
-    else {
-      this.suggestion.table.innerHTML = '';
-      if (col.class === 3) this.suggestId(target.value);
-      else if (col.class === 1 && type.startsWith('VARCHAR')) this.suggestText(target.value, col.name);
-    }
+    if (requiredFieldsFilled) this.formRow.saveButton.removeAttribute('disabled');
+    else this.formRow.saveButton.setAttribute('disabled', true);
 
   }
 
@@ -613,12 +635,19 @@ class TrekDatabase {
       this.selectSuggestion(
         col.table, 
         () => { // onSuccess
-          this.suggestId(value);
-          this.suggestion.box.classList.remove('is-loading');
+          if (this.suggestId(value)) {
+            this.suggestion.box.classList.remove('is-loading');
+          } else {
+            this.formRow.saveButton.setAttribute('disabled', true);
+            // danger warning for wrong input
+          } 
         }
       );
     } else if (col.class === 1 && col.type.toUpperCase().startsWith('VARCHAR')) {
-      this.suggestText(value, col.name);     
+      if (!this.suggestText(value, col.name)) {
+        this.suggestion = undefined;
+        return;
+      }
     } else return;
 
     target.insertAdjacentElement('afterend', this.suggestion.box);
@@ -634,6 +663,10 @@ class TrekDatabase {
         filteredResults.add(row[colName]);
       }
     });
+    if (filteredResults.size === 0) {
+      filteredResults.add(search);
+    }
+
     filteredResults.forEach( (result) => {
       const tr = document.createElement('tr');
       tr.setAttribute('data-suggestion', result);
@@ -649,11 +682,13 @@ class TrekDatabase {
       this.suggestion.table.appendChild(tr);
     });
     this.suggestion.current = this.suggestion.table.firstChild;
+    //if (this.suggestion.current === null) return false;
     this.suggestion.current.classList.add('has-background-primary');
+    return true;
   }
 
   suggestId(value) {
-    this.suggestion.model.forAllDesc( (row, id) => {
+    this.suggestion.model.forAllAsc( (row, id) => {
       const idStr = id.toString();
       if (idStr.startsWith(value)) {
         const tr = document.createElement('tr');
@@ -661,10 +696,10 @@ class TrekDatabase {
         this.suggestion.columns.forEach( (col) => {
           switch (col.class) {
             case 0: // Meta Column
-              if (col.name === 'id') tr.innerHTML += `<td>${id}</td>`;
+              if (col.name === 'id') tr.innerHTML += `<td><b>${value}</b>${idStr.slice(value.length)}</td>`;
               break;
             case 1: // Data Column
-              tr.innerHTML += `<td><b>${value}</b>${row[col.name].slice(value.length)}</td>`;
+              tr.innerHTML += `<td>${row[col.name]}</td>`;
               break;
           }
         });
@@ -678,17 +713,21 @@ class TrekDatabase {
       }
     });
     this.suggestion.current = this.suggestion.table.firstChild;
+    if (this.suggestion.current === null) return false;
     this.suggestion.current.classList.add('has-background-primary');
+    return true;
   }
 
   acceptSuggestion(target) {
     this.suggestion.target.value = target.getAttribute('data-suggestion');
     this.suggestion.box.parentNode.removeChild(this.suggestion.box);
+    this.updateForm(this.suggestion.target);
     this.suggestion = undefined;
   }
 
   closeSuggestion() {
-    if (this.suggestion.hasMouse === false) {
+    console.log('closeSuggestion', this.suggestion);
+    if (this.suggestion !== undefined && this.suggestion.hasMouse === false) {
       this.suggestion.box.parentNode.removeChild(this.suggestion.box);
       this.suggestion = undefined;
     }

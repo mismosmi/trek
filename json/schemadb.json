@@ -92,6 +92,10 @@
                 }
             ]
         },
+        "clonetable": {
+            "title": "Clone Table",
+            "column_reference": "testtable"
+        },
         "numerictable": {
             "title": "Numeric Table",
             "columns": [
@@ -117,6 +121,7 @@
     },
     "order": [
         "schematable",
+        "clonetable",
         "foreigntable",
         "testtable",
         "numerictable"
