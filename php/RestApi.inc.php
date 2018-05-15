@@ -86,6 +86,43 @@ class RestApi extends SqlDb
         }
         return $dataChecked;
     }
+
+    private function getJoinTables($hierarchy, $baseTable, $referenceType, $referenceTable)
+    {
+        $thisTable = end($hierarchy);
+        $joinTables = [[
+            'name' => $thisTable, 
+            'columns' => [], 
+            'referenceType' => $referenceType, 
+            'referenceTable' => $referenceTable,
+            'prefix' => implode("_", $hierarchy)
+        ]];
+        foreach ($this->getColumns($thisTable) as $fcol) {
+            if ($fcol['class'] === 1) {
+                $joinTables[0]['columns'][] = $fcol;
+            } elseif (
+                $fcol['class'] === 3 &&
+                !in_array($fcol['table'], $hierarchy) &&
+                $fcol['table'] !== $baseTable
+            ) {
+                $hierarchy[] = $fcol['table'];
+                $joinTables = array_merge($joinTables, $this->getJoinTables($hierarchy, $baseTable, 'left', $thisTable));
+                array_pop($hierarchy);
+            } elseif (
+                $fcol['class'] === 2 && 
+                array_key_exists('table', $fcol) &&
+                !in_array($fcol['table'], $hierarchy) &&
+                $fcol['table'] !== $baseTable
+            ) {
+                $hierarchy[] = $fcol['table'];
+                $joinTables = array_merge($joinTables, $this->getJoinTables($hierarchy, $baseTable, 'right', $thisTable));
+                array_pop($hierarchy);
+            }
+        }
+        return $joinTables;
+    }
+                
+
     
 
     /**
@@ -129,25 +166,11 @@ class RestApi extends SqlDb
                     break;
                 case 2: // Auto Column
                     if (array_key_exists('table', $col)) {
-                        $joinTable = ['name' => $col['table'], 'columns' => [], 'reference' => "right"];
-                        foreach ($this->getColumns($col['table']) as $fcol) {
-                            switch ($fcol['class']) {
-                            case 1: // Data Column
-                                $joinTable['columns'][] = $fcol;
-                            }
-                        }
-                        $joinTables[] = $joinTable;
+                        $joinTables = array_merge($joinTables, $this->getJoinTables([$col['table']], $postData['tableName'], "right", $thisTable['name']));
                     }
                     break;
                 case 3: // Foreign Key
-                    $joinTable = ['name' => $col['table'], 'columns' => [], 'reference' => "left"];
-                    foreach ($this->getColumns($col['table']) as $fcol) {
-                        switch ($fcol['class']) {
-                        case 1: // Data Column
-                            $joinTable['columns'][] = $fcol;
-                        }
-                    }
-                    $joinTables[] = $joinTable;
+                    $joinTables = array_merge($joinTables, $this->getJoinTables([$col['table']], $postData['tableName'], "left", $thisTable['name']));
                     break;
                 }
             }

@@ -91,28 +91,24 @@
                     "type": "VARCHAR(30)"
                 },
                 {
-                    "name": "budget",
-                    "title": "Budget",
-                    "class": 1,
-                    "type": "VARCHAR(30)"
-                },
-                {
                     "name": "budgetsum",
                     "title": "Summe",
                     "class": 1,
-                    "type": "DECIMAL"
+                    "type": "EURO"
                 },
                 {
                     "name": "spending",
                     "title": "Budget Ausgegeben",
                     "class": 2,
-                    "js": "tv.sum(tv.order_sum)",
+                    "type": "EURO",
+                    "js": "let sum = 0; for (var i=0; i<tv.outgoing_quantity; i++) sum += tv.outgoing_quantity.length * tv.outgoing_product_unitprice; return sum;",
                     "table": "outgoing"
                 },
                 {
                     "name": "budgetleft",
                     "title": "Budget Übrig",
                     "class": 2,
+                    "type": "EURO",
                     "js": "tv.budgetsum - tv.spending"
                 },
                 {
@@ -157,6 +153,7 @@
                     "name": "unitprice",
                     "title": "Preis/Einheit",
                     "class": 2,
+                    "type": "EURO",
                     "js": "tv.product_unitprice"
                 },
                 {
@@ -169,6 +166,7 @@
                     "name": "sum",
                     "title": "Summe Bestellung",
                     "class": 2,
+                    "type": "EURO",
                     "js": "tv.quantity * tv.product_unitprice"
                 }
             ]

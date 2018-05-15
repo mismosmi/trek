@@ -379,28 +379,28 @@ class SqlDb {
                 }
             }
             foreach ($joinTables as $table) {
-                $columns[] = "{$table['name']}.id AS {$table['name']}_id";
-                $columns[] = "{$table['name']}.createdate AS {$table['name']}_createdate";
-                $columns[] = "{$table['name']}.modifieddate AS {$table['name']}_modifieddate";
-                $columns[] = "{$table['name']}.deleted AS {$table['name']}_deleted";
-                switch ($table['reference']) {
+                $columns[] = "{$table['name']}.id AS {$table['prefix']}_id";
+                $columns[] = "{$table['name']}.createdate AS {$table['prefix']}_createdate";
+                $columns[] = "{$table['name']}.modifieddate AS {$table['prefix']}_modifieddate";
+                $columns[] = "{$table['name']}.deleted AS {$table['prefix']}_deleted";
+                switch ($table['referenceType']) {
                 case "left":
-                    $js .= " LEFT JOIN {$table['name']} ON {$thisTable['name']}.{$table['name']}_id = {$table['name']}.id";
+                    $js .= " LEFT JOIN {$table['name']} ON {$table['referenceTable']}.{$table['name']}_id = {$table['name']}.id";
                     break;
                 case "right":
-                    $js .= " LEFT JOIN {$table['name']} ON {$thisTable['name']}.id = {$table['name']}.{$thisTable['name']}_id";
-                    $arrayColumns[] = "{$table['name']}_id";
-                    $arrayColumns[] = "{$table['name']}_createdate";
-                    $arrayColumns[] = "{$table['name']}_modifieddate";
-                    $arrayColumns[] = "{$table['name']}_deleted";
-                    foreach ($table['columns'] as $column) $arrayColumns[] = "{$table['name']}_{$column['name']}";
+                    $js .= " LEFT JOIN {$table['name']} ON {$table['referenceTable']}.id = {$table['name']}.{$table['referenceTable']}_id";
+                    $arrayColumns[] = "{$table['prefix']}_id";
+                    $arrayColumns[] = "{$table['prefix']}_createdate";
+                    $arrayColumns[] = "{$table['prefix']}_modifieddate";
+                    $arrayColumns[] = "{$table['prefix']}_deleted";
+                    foreach ($table['columns'] as $column) $arrayColumns[] = "{$table['prefix']}_{$column['name']}";
                     $order .= ",{$table['name']}_id";
                     break;
                 }
                 foreach ($table['columns'] as $column) {
                     switch ($column['class']) {
                         case 1:
-                        $columns[] = "{$table['name']}.{$column['name']} AS {$table['name']}_{$column['name']}";
+                        $columns[] = "{$table['name']}.{$column['name']} AS {$table['prefix']}_{$column['name']}";
                         break;
                     }
                 }
@@ -443,6 +443,7 @@ class SqlDb {
             }
             return ['success' => True, 'data' => $data];
         } catch (PDOException $e) {
+            //echo "Error: ".$e->getMessage()."\n";
             return ['success' => False, 'errormsg' =>
                 "dbSelectJoin: Error fetching data from table(s) based on {$thisTable['name']}: ".$e->getMessage()];
         }

@@ -126,6 +126,44 @@ class Database extends Page
     }
 
     /**
+     * recursively get all Data fields from this table and any referenced tables
+     *
+     * @param array $hierarchy  the hierarchy recursed tables
+     * @return string the resulting javascript code
+     */ 
+    private function getDataColumns($hierarchy, $baseTable)
+    {
+        $tableColumns = '';
+        foreach ($this->getColumns(end($hierarchy)) as $fcol) {
+            if ($fcol['class'] === 1) {
+                $symbol = $this->getSymbol($fcol['type']);
+                $prefix = implode("_", $hierarchy);
+                $tableColumns .= 
+                    "        {\n"
+                    ."           name: \"{$prefix}_{$fcol['name']}\",\n"
+                    ."           class: 4,\n" // Foreign Data Column
+                    ."           type: \"{$fcol['type']}\",\n"
+                    ."           symbol: \"$symbol\",\n"
+                    ."        },\n";
+            } elseif (
+                (
+                    $fcol['class'] === 3 || 
+                    ($fcol['class'] === 2 && array_key_exists('table', $fcol)) 
+                ) &&
+                !in_array($fcol['table'], $hierarchy) &&
+                $fcol['table'] !== $baseTable
+            ) {
+                $hierarchy[] = $fcol['table'];
+                $tableColumns .= $this->getDataColumns($hierarchy, $baseTable);
+                array_pop($hierarchy);
+            }
+        }
+        return $tableColumns;
+    }
+
+
+
+    /**
      * generate script
      */
     public function getScript()
@@ -149,21 +187,10 @@ class Database extends Page
                             ."},\n";
                     }
                 }
-                if ($column['class'] === 3 || ($column['class'] === 2 && array_key_exists('table', $column))) {
-                    foreach ($this->getColumns($column['table']) as $fcol) {
-                        switch ($fcol['class']) {
-                        case 1: // Data Column
-                            $symbol = $this->getSymbol($fcol['type']);
-                            $tableColumns .= 
-                                "        {\n"
-                                ."           name: \"{$column['table']}_{$fcol['name']}\",\n"
-                                ."           class: 4,\n" // Foreign Data Column
-                                ."           type: \"{$fcol['type']}\",\n"
-                                ."           symbol: \"$symbol\",\n"
-                                ."        },\n";
-                        }
-                    }
-                }
+                if (
+                    $column['class'] === 3 || 
+                    ($column['class'] === 2 && array_key_exists('table', $column))
+                ) $tableColumns .= $this->getDataColumns([$column['table']], $tableName);
 
                 if ($column['class'] === 1 || $column['class'] === 3) {
                     $required = $column['required'] 

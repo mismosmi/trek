@@ -111,12 +111,24 @@ class SqlDbTest extends TestCase
         $result = ['success' => True, 'data' => [1 => ['testcol' => "v2", 'referencedTable_testcol' => "testvalue"]]];
         $this->assertArraySubset($result, $this->db->dbSelectJoin(
             ['name' => "testtable", 'columns' => [["name" => "testcol", 'class' => 1, 'type' => "VARCHAR"]]], 
-            [['name' => "referencedTable", 'columns' => [['name' => "testcol", 'class'=>1, 'type'=>"VARCHAR"]], 'reference' => "left"]]
+            [[
+                'name' => "referencedTable", 
+                'columns' => [['name' => "testcol", 'class'=>1, 'type'=>"VARCHAR"]], 
+                'referenceType' => "left", 
+                'referenceTable' => "testtable", 
+                'prefix' => "referencedTable"
+            ]]
         ));
         $result = ['success' => true, 'data' => [1 => ['testcol' => "testvalue", 'testtable_testcol' => ["v2"]]]];
         $this->assertArraySubset($result, $this->db->dbSelectJoin(
             ['name' => "referencedTable", 'columns' => [['name' => "testcol", 'class' => 1, 'type' => "VARCHAR"]]],
-            [['name' => "testtable", 'reference' => "right", 'columns' => [['name' => "testcol", 'class' => 1, 'type' => "VARCHAR"]]]]
+            [[
+                'name' => "testtable", 
+                'referenceType' => "right", 
+                'columns' => [['name' => "testcol", 'class' => 1, 'type' => "VARCHAR"]],
+                'referenceTable' => "referencedTable",
+                'prefix' => "testtable"
+            ]]
         ));
     }
 
@@ -125,6 +137,46 @@ class SqlDbTest extends TestCase
         $columns = [['name' => "doublecol", 'type' => "DOUBLE", 'class' => 1]];
         $this->assertArraySubset(SUCCESS, $this->db->dbCreateTable('testtable', $columns));
     }
+
+    public function testDeepReference()
+    {
+        $columns1 = [
+            ['name' => "testcol", 'type' => "VARCHAR", 'class' => 1]
+        ];
+        $this->db->dbCreateTable('deepReferencedTable', $columns1);
+        $this->db->dbInsert('deepReferencedTable', ['testcol' => "testvalue"]);
+        $columns2 = [
+            ['table' => "deepReferencedTable", 'type' => "FOREIGN KEY", 'class' => 3]
+        ];
+        $this->db->dbCreateTable('referencedTable', $columns2);
+        $this->db->dbInsert('referencedTable', ['deepReferencedTable_id' => "1"]);
+        $columns3 = [
+            ['table' => "referencedTable", 'type' => "FOREIGN KEY", 'class' => 3]
+        ];
+        $this->db->dbCreateTable('testtable', $columns3);
+        $this->db->dbInsert('testtable', ['referencedTable_id' => "1"]);
+        $result = ['success' => true, 'data' => [1 => [
+            'referencedTable_deepReferencedTable_testcol' => "testvalue",
+            'referencedTable_deepReferencedTable_id' => 1
+        ]]];
+        $this->assertArraySubset($result, $this->db->dbSelectJoin(
+            ['name' => "testtable", 'columns' => []],
+            [[
+                'name' => "referencedTable",
+                'referenceType' => "left",
+                'columns' => [['name' => "deepReferencedTable_id", 'class' => 3]],
+                'referenceTable' => "testtable",
+                'prefix' => "referencedTable"
+            ],[
+                'name' => "deepReferencedTable",
+                'referenceType' => "left",
+                'columns' => [['name' => "testcol", 'type' => "VARCHAR", 'class' => 1]],
+                'referenceTable' => "referencedTable",
+                'prefix' => "referencedTable_deepReferencedTable"
+            ]]
+        ));
+    }
+
 
 }
 
