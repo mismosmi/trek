@@ -5,10 +5,10 @@
 class TrekTableModel {
 
   // Construct TrekDatabase Object from data given in ajax payload
-  constructor(columnData, tableData) {
+  constructor(tableName, database, tableData) {
+    const columns = database.getTableColumns(tableName);
 
     this.convertRowTypes = (row) => {
-      const columns = columnData;
       columns.forEach( (col) => {
         const type = col.type.toUpperCase();
         if (
@@ -45,7 +45,7 @@ class TrekTableModel {
     Object.assign(this, tableData);
 
     // attach accessort
-    columnData.forEach( (col) => {
+    columns.forEach( (col) => {
       switch (col.class) {
         case 0: // id, timestamp etc.
           if (col.name === 'id') {
@@ -91,6 +91,13 @@ class TrekTableModel {
               return col.run(this);
             }
           });
+          col.tables.forEach( (referencedTable) => {
+            Object.defineProperty(this, tableName, {
+              get: () => {
+                return Object.values(db.getTable(referencedTable)).filter( row => row[tableName + '_id'] === this.currentId );
+              }
+            });
+          });
           break;
         case 3: // Foreign Key
           Object.defineProperty(this, col.name, {
@@ -102,6 +109,12 @@ class TrekTableModel {
               // foreign keys are always ints
               this.bufferChanged = true;
               return this.buffer[col.name] = parseInt(value);
+            }
+          });
+          Object.defineProperty(this, col.table, {
+            get: () => {
+              if (this.buffer !== undefined) return this.buffer[col.name] ? db.getTable(col.table)[this.buffer[col.name]] : '';
+              return this[this.currentId][col.name] ? db.getTable(tableName)[this[this.currentId][col.name]] : '';
             }
           });
           break;
@@ -193,12 +206,12 @@ class TrekTableModel {
 class TrekTableView {
 
   // construct from data given in ajax payload
-  constructor(tableColumns, tableData) {
+  constructor(tableName, database, model) {
     this.dom = document.getElementById('trek-table');
     this.body = this.dom.getElementsByTagName('tbody')[0];
     this.head = this.dom.getElementsByTagName('thead')[0];
-    this.columns = tableColumns;
-    this.model = new TrekTableModel(tableColumns, tableData);
+    this.columns = database.getTableColumns(tableName);
+    this.model = model;
     // generate "new"-row
     this.newRow = document.createElement('tr');
     this.newRow.id = 'new';
@@ -438,6 +451,14 @@ class TrekDatabase {
     };
   }
 
+  getTableColumns(tableName) {
+    return this.tableColumns[tableName];
+  }
+
+  getTable(tableName) {
+    return this.tableModels[tableName];
+  }
+
   // trigger event when row is clicked
   editThis(event) {
     if (this.editMode || event.currentTarget.id === 'new') {
@@ -630,19 +651,12 @@ class TrekDatabase {
 
     // only do this for text-type data columns or foreign key columns
     if (col.class === 3) {
-      this.suggestion.box.classList.add('is-loading');
-      this.suggestion.columns = this.tableColumns[col.table];
-      this.selectSuggestion(
-        col.table, 
-        () => { // onSuccess
-          if (this.suggestId(value)) {
-            this.suggestion.box.classList.remove('is-loading');
-          } else {
-            this.formRow.saveButton.setAttribute('disabled', true);
-            // danger warning for wrong input
-          } 
-        }
-      );
+      this.suggestion.columns = this.tables[col.table].columns;
+      this.suggestion.model = this.tables[col.table].model;
+      if (!this.suggestId(value)) {
+        this.formRow.saveButton.setAttribute('disabled', true);
+        // danger warning for wrong input
+      } 
     } else if (col.class === 1 && col.type.toUpperCase().startsWith('VARCHAR')) {
       if (!this.suggestText(value, col.name)) {
         this.suggestion = undefined;
@@ -763,54 +777,68 @@ class TrekDatabase {
     });
   }
 
-  // select all visible columns of a table
-  selectTable(tabLink) {
+  chooseTab(tabLink) {
     if (typeof tabLink === 'object') {
       this.activeTab.classList.remove('is-active');
       this.activeTab = tabLink.parentNode;
-      this.tableName = this.activeTab.getAttribute('data-table');
+      this.activeTable = this.activeTab.getAttribute('data-table');
     }
     this.activeTab.classList.add('is-active');
     this.exitEditMode();
-    this.ajaxRequest(
-      {operation: 'SELECT', tableName: this.tableName}, // data
-      (response) => { // onSuccess
-        this.table = new TrekTableView(this.tableColumns[this.tableName], response.data);
-        this.table.head.innerHTML = '';
-        this.table.head.appendChild(this.table.getHeadRow());
-        this.table.body.innerHTML = '';
-        this.table.body.appendChild(this.table.newRow);
-        for (var index = this.table.model.getMaxIndex(); index > 0; index--) {
-          if (this.table.model[index] !== undefined) {
-            this.table.body.appendChild(this.table.getRow(index));
+
+    this.selectTable(
+      this.activeTable,
+      () => { // onSuccess
+        const model = this.getTableModel(this.activeTable);
+        this.tableView = new TrekTableView(this.activeTable, this, model);
+        this.tableView.head.innerHTML = '';
+        this.tableView.head.appendChild(this.tableView.getHeadRow());
+        this.tableView.body.innerHTML = '';
+        this.tableView.body.appendChild(this.tableView.newRow);
+        for (var index = model.getMaxIndex(); index > 0; index--) {
+          if (model[index] !== undefined) {
+            this.tableView.body.appendChild(this.tableView.getRow(index));
           }
         }
-        this.lastUpdate = response.time;
         // push url including table
         const url = new URL(document.location.href);
-        url.searchParams.set('table', this.tableName);
+        url.searchParams.set('table', this.activeTable);
         window.history.pushState(response.data, '', url.pathname + url.search);
-      },
+      }
     );
   }
 
-  selectSuggestion(tableName, onSuccess, onError) {
+  // select all visible columns of a table
+  selectTable(thisTable, onSuccess, onError) {
+    const tableNames = [thisTable, ...this.tables[tableName].referencedTables];
     this.ajaxRequest(
-      {operation: 'SELECT', tableName: tableName},
+      {operation: 'SELECT', tableNames: tableNames},
       (response) => { // onSuccess
-        this.suggestion.model = new TrekTableModel(this.tableColumns[tableName], response.data);
+        tableNames.forEach( (tableName) => {
+          this.tables[tableName].model = new TrekTableModel(tableName, this, response.data[tableName]);
+        });
+        this.lastUpdate = response.time;
         onSuccess();
       },
       onError
     );
   }
 
+  updateTable(thisTable, otherTables, data) {
+    otherTables.forEach( (tableName) => {
+      this.tables[tableName].model.update(data[tableName]);
+    });
+    this.tableView.update(data[thisTable]);
+  }
+
+
   // pull updates since last refresh
-  refreshTable(onSuccess, onError) {
+  refreshTable(thisTable, onSuccess, onError) {
+    const otherTables = this.tables[thisTable].referencedTables;
     this.ajaxRequest(
-      {operation: 'SELECT', tableName: this.tableName, lastUpdate: this.lastUpdate},
+      {operation: 'SELECT', tableNames: [thisTable, ...otherTables], lastUpdate: this.lastUpdate},
       (response) => {
-        this.table.update(response.data);
+        this.updateTable(thisTable, otherTables, response.data);
         this.lastUpdate = response.time;
         onSuccess();
       },
@@ -821,10 +849,10 @@ class TrekDatabase {
   // insert a new row
   insertRow(rowData, onSuccess, onError) {
     this.ajaxRequest(
-      {operation: 'INSERT', tableName: this.tableName, lastUpdate: this.lastUpdate, data: [rowData]},
+      {operation: 'INSERT', tableName: this.activeTable, lastUpdate: this.lastUpdate, data: [rowData]},
       (response) => {
         this.table.model.editDone();
-        this.table.update(response.data);
+        this.updateTable(thisTable, this.tables[this.activeTable].referencedTables, response.data);
         this.lastUpdate = response.time;
         onSuccess();
       },
@@ -837,10 +865,10 @@ class TrekDatabase {
     const data = {};
     data[rowId] = rowData;
     this.ajaxRequest(
-      {operation: 'ALTER', tableName: this.tableName, lastUpdate: this.lastUpdate, data: data},
+      {operation: 'ALTER', tableName: this.activeTable, lastUpdate: this.lastUpdate, data: data},
       (response) => {
         this.table.model.editDone();
-        this.table.update(response.data);
+        this.updateTable(this.activeTable, this.tables[this.activeTable].referencedTables, response.data);
         this.lastUpdate = response.time;
         onSuccess();
       },
@@ -851,9 +879,9 @@ class TrekDatabase {
   // delete a row
   deleteRow(rowId, onSuccess, onError) {
     this.ajaxRequest(
-      {operation: 'DELETE', tableName: this.tableName, lastUpdate: this.lastUpdate, rows: [rowId]},
+      {operation: 'DELETE', tableName: this.activeTable, lastUpdate: this.lastUpdate, rows: [rowId]},
       (response) => {
-        this.table.update(response.data);
+        this.updateTable(this.activeTable, this.tables[this.activeTable].referencedTables, response.data);
         this.lastUpdate = response.time;
         onSuccess();
       },
