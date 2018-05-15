@@ -108,16 +108,16 @@ class RestApi extends SqlDb
                 $hierarchy[] = $fcol['table'];
                 $joinTables = array_merge($joinTables, $this->getJoinTables($hierarchy, $baseTable, 'left', $thisTable));
                 array_pop($hierarchy);
-            } elseif (
-                $fcol['class'] === 2 && 
-                array_key_exists('table', $fcol) &&
-                !in_array($fcol['table'], $hierarchy) &&
-                $fcol['table'] !== $baseTable
-            ) {
-                $hierarchy[] = $fcol['table'];
-                $joinTables = array_merge($joinTables, $this->getJoinTables($hierarchy, $baseTable, 'right', $thisTable));
-                array_pop($hierarchy);
-            }
+            } //elseif (
+            //    $fcol['class'] === 2 && 
+            //    array_key_exists('table', $fcol) &&
+            //    !in_array($fcol['table'], $hierarchy) &&
+            //    $fcol['table'] !== $baseTable
+            //) {
+            //    $hierarchy[] = $fcol['table'];
+            //    $joinTables = array_merge($joinTables, $this->getJoinTables($hierarchy, $baseTable, 'right', $thisTable));
+            //    array_pop($hierarchy);
+            //}
         }
         return $joinTables;
     }
@@ -165,8 +165,10 @@ class RestApi extends SqlDb
                     $thisTable['columns'][] = $col;
                     break;
                 case 2: // Auto Column
-                    if (array_key_exists('table', $col)) {
-                        $joinTables = array_merge($joinTables, $this->getJoinTables([$col['table']], $postData['tableName'], "right", $thisTable['name']));
+                    if (array_key_exists('tables', $col)) {
+                        foreach ($col['tables'] as $joinTableName) {
+                            $joinTables = array_merge($joinTables, $this->getJoinTables([$joinTableName], $postData['tableName'], "right", $thisTable['name']));
+                        }
                     }
                     break;
                 case 3: // Foreign Key

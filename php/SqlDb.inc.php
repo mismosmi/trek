@@ -351,6 +351,8 @@ class SqlDb {
         $connStatus = $this->dbConnect();
         if (!$connStatus['success']) return $connStatus;
 
+        $stmtStr = '';
+
         try {
             $ws = "";
             if (!empty($where)) {
@@ -407,6 +409,7 @@ class SqlDb {
             }
             $order .= " ASC";
             //echo "SELECT ".join(",",$columns)." FROM {$thisTable['name']}$js$ws ORDER $order$ls\n";
+            $stmtStr = "SELECT ".join(",",$columns)." FROM {$thisTable['name']}$js$ws ORDER $order$ls\n";
             $stmt = $this->db->prepare(
                 "SELECT ".join(",",$columns)." "
                 ."FROM {$thisTable['name']}$js$ws ORDER $order$ls"
@@ -445,7 +448,7 @@ class SqlDb {
         } catch (PDOException $e) {
             //echo "Error: ".$e->getMessage()."\n";
             return ['success' => False, 'errormsg' =>
-                "dbSelectJoin: Error fetching data from table(s) based on {$thisTable['name']}: ".$e->getMessage()];
+                "dbSelectJoin: Error fetching data from table(s) based on {$thisTable['name']}: ".$e->getMessage()."\nQuery:\n".$stmtStr];
         }
     }
 

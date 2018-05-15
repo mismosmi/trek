@@ -147,8 +147,8 @@ class Database extends Page
                     ."        },\n";
             } elseif (
                 (
-                    $fcol['class'] === 3 || 
-                    ($fcol['class'] === 2 && array_key_exists('table', $fcol)) 
+                    $fcol['class'] === 3 //|| 
+                    //($fcol['class'] === 2 && array_key_exists('table', $fcol)) 
                 ) &&
                 !in_array($fcol['table'], $hierarchy) &&
                 $fcol['table'] !== $baseTable
@@ -187,10 +187,13 @@ class Database extends Page
                             ."},\n";
                     }
                 }
-                if (
-                    $column['class'] === 3 || 
-                    ($column['class'] === 2 && array_key_exists('table', $column))
-                ) $tableColumns .= $this->getDataColumns([$column['table']], $tableName);
+                if ($column['class'] === 3) {
+                    $tableColumns .= $this->getDataColumns([$column['table']], $tableName);
+                } elseif ($column['class'] === 2 && array_key_exists('tables', $column)) {
+                    foreach ($column['table'] as $joinTableName) {
+                        $tableColumns .= $this->getDataColumns([$joinTableName], $tableName);
+                    }
+                }
 
                 if ($column['class'] === 1 || $column['class'] === 3) {
                     $required = $column['required'] 

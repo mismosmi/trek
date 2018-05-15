@@ -61,7 +61,7 @@
                     "title": "Foreign Sum",
                     "class": 2,
                     "js": "tv.sum(tv.numerictable_integercolumn)",
-                    "table": "numerictable"
+                    "tables": ["numerictable"]
                 }
             ]
         },

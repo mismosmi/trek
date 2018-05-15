@@ -101,8 +101,8 @@
                     "title": "Budget Ausgegeben",
                     "class": 2,
                     "type": "EURO",
-                    "js": "let sum = 0; for (var i=0; i<tv.outgoing_quantity; i++) sum += tv.outgoing_quantity.length * tv.outgoing_product_unitprice; return sum;",
-                    "table": "outgoing"
+                    "js": "let sum = 0; for (var i=0; i<tv.outgoing_quantity.length; i++) sum += tv.outgoing_quantity[i] * tv.outgoing_product_unitprice[i]; for (var i=0; i<tv.retoure_quantity.length; i++) sum -= tv.retoure_quantity[i] * tv.retoure_product_unitprice[i]; return sum;",
+                    "tables": ["outgoing","retoure"]
                 },
                 {
                     "name": "budgetleft",
