@@ -54,13 +54,13 @@
                     "name": "foreigncolumn",
                     "title": "Foreign Column",
                     "class": 2,
-                    "js": "tv.foreigntable_foreigncolumn"
+                    "js": "tv.foreigntable.foreigncolumn"
                 },
                 {
                     "name": "foreignsum",
                     "title": "Foreign Sum",
                     "class": 2,
-                    "js": "tv.sum(tv.numerictable_integercolumn)",
+                    "js": "tv.numerictable.sum('integercolumn')",
                     "tables": ["numerictable"]
                 }
             ]

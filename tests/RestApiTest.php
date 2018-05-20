@@ -33,18 +33,16 @@ class RestApiTest extends TestCase
         $this->api->processRequest([
             'operation' => "INSERT",
             'tableName' => "foreigntable",
-            'data' => [['foreigncolumn' => "foreign value"]]
+            'data' => ['foreigncolumn' => "foreign value"]
         ]);
         $result = json_decode($this->api->processRequest([
             'operation' => "INSERT",
             'tableName' => "schematable",
-            'data' => [['datacolumn' => "testvalue", 'foreigntable_id' => 1]]
+            'data' => ['datacolumn' => "testvalue", 'foreigntable_id' => 1]
         ]), true);
         $this->assertArraySubset([
             'datacolumn' => "testvalue", 
-            'foreigntable_id' => 1, 
-            'foreigntable_deleted' => 0,
-            'foreigntable_foreigncolumn' => "foreign value"
+            'foreigntable_id' => 1
         ], $result['data'][1]);
     }
 
@@ -58,7 +56,7 @@ class RestApiTest extends TestCase
         $this->api->processRequest([
             'operation' => "INSERT", 
             'tableName' => "testtable",
-            'data' => [['testcolumn' => "testvalue"]]
+            'data' => ['testcolumn' => "testvalue"]
         ]);
         $result = json_decode($this->api->processRequest([
             'operation' => "SELECT", 
@@ -78,7 +76,8 @@ class RestApiTest extends TestCase
         $result = json_decode($this->api->processRequest([
             'operation' => "ALTER",
             'tableName' => "testtable",
-            'data' => [1 => ['testcolumn' => "other value"]]
+            'row' => 1,
+            'data' => ['testcolumn' => "other value"]
         ]),true);
         $this->assertArraySubset(['data' => [1 => ['testcolumn' => "other value"]]], $result);
     }
@@ -88,18 +87,18 @@ class RestApiTest extends TestCase
         $this->api->processRequest([
             'operation' => "INSERT", 
             'tableName' => "testtable",
-            'data' => [['testcolumn' => "testvalue 1"]]
+            'data' => ['testcolumn' => "testvalue 1"]
         ]);
         $this->api->processRequest([
             'operation' => "INSERT", 
             'tableName' => "testtable",
-            'data' => [['testcolumn' => "testvalue 2"]]
+            'data' => ['testcolumn' => "testvalue 2"]
         ]);
         $result = json_decode($this->api->processRequest([
             'operation' => "DELETE",
             'tableName' => "testtable",
             'lastUpdate' => date('Y-m-d G:i:s'),
-            'rows' => [1]
+            'row' => 1
         ]),true);
         $this->assertArraySubset(['data' => [
             1 => ['deleted' => true],
@@ -107,26 +106,6 @@ class RestApiTest extends TestCase
         ]], $result);
     }
 
-    public function testSum()
-    {
-        $this->api->processRequest([
-            'operation' => "INSERT",
-            'tableName' => "schematable",
-            'data' => [['datacolumn' => "some data"]]
-        ]);
-        $this->api->processRequest([
-            'operation' => "INSERT",
-            'tableName' => "numerictable",
-            'data' => [['schematable_id' => 1, 'integercolumn' => 5], ['schematable_id' => 1, 'integercolumn' => 3]]
-        ]);
-        $result = json_decode($this->api->processRequest([
-            'operation' => "SELECT",
-            'tableName' => "schematable"
-        ]), true);
-        $this->assertArraySubset(['data' => [
-            1 => ['numerictable_id' => [1,2], 'numerictable_integercolumn' => [5,3]]
-        ]], $result);
-    }
 
 }
 

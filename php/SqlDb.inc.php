@@ -279,7 +279,7 @@ class SqlDb {
      * process arbitrary SELECT request
      *
      * @param string $table
-     * @param array (string) $columns       which columns to select
+     * @param array $columns       which columns to select and type information
      * @param array $where
      * @param int $limit
      * @param string $order
@@ -287,7 +287,7 @@ class SqlDb {
      */
     public function dbSelect(
         $table, 
-        array $columns = ['*'], 
+        array $columns, 
         array $where = [],
         $limit = 0,
         $order = NULL
@@ -302,11 +302,16 @@ class SqlDb {
             if (!empty($where)) {
                 $ws = " WHERE ";
                 foreach ($where as $w) {
-                    [$key, $op, $val] = explode(' ', $w);
+                    [$key, $op, $val] = explode(' ', $w, 3);
                     $ws .= "$key $op :$key";
                 }
             }
             $ls = empty($limit) ? "" : " LIMIT $limit";
+
+            $columns[] = "$table.id";
+            $columns[] = "$table.createdate";
+            $columns[] = "$table.modifieddate";
+            $columns[] = "$table.deleted";
             
             $stmt = $this->db->prepare(
                 "SELECT ".join(",",$columns)." "
@@ -314,13 +319,25 @@ class SqlDb {
             );
             if (!empty($where)) {
                 foreach ($where as $w) {
-                    [$key, $op, $val] = explode(' ', $w);
+                    [$key, $op, $val] = explode(' ', $w, 3);
                     $stmt->bindValue(":$key", $val);
                 }
             }
             $stmt->execute();
             $stmt->setFetchMode(PDO::FETCH_ASSOC);
-            return ['success' => True, 'data' => $stmt->fetchAll()];
+            $data = [];
+            while ($row = $stmt->fetch()) {
+                if ($row['deleted']) {
+                    $data[$row['id']] = ['deleted' => true];
+                    continue;
+                }
+                foreach ($row as $key => $val) {
+                    if ($key === "deleted") continue;
+                    $data[$row['id']][$key] = $val;
+                }
+            }
+                
+            return ['success' => True, 'data' => $data];
         } catch (PDOException $e) {
             return ['success' => False, 'errormsg' =>
                 "dbSelect: Error fetching data from table $table: ".$e->getMessage()];
@@ -337,120 +354,121 @@ class SqlDb {
      * @param string $order
      * @return array success-status and data or error message
      */
-    public function dbSelectJoin(
-        array $thisTable,
-        array $joinTables,
-        array $where = [],
-        $limit = 0,
-        $order = NULL
-    )
-    {
-        $table = $thisTable['name'];
-        $order = $order ?: "BY {$thisTable['name']}.id";
+    // DEPRECATED in favour of just using simple dbSelect and doing it all in js
+    //public function dbSelectJoin(
+    //    array $thisTable,
+    //    array $joinTables,
+    //    array $where = [],
+    //    $limit = 0,
+    //    $order = NULL
+    //)
+    //{
+    //    $table = $thisTable['name'];
+    //    $order = $order ?: "BY {$thisTable['name']}.id";
 
-        $connStatus = $this->dbConnect();
-        if (!$connStatus['success']) return $connStatus;
+    //    $connStatus = $this->dbConnect();
+    //    if (!$connStatus['success']) return $connStatus;
 
-        $stmtStr = '';
+    //    $stmtStr = '';
 
-        try {
-            $ws = "";
-            if (!empty($where)) {
-                $ws = " WHERE ";
-                foreach ($where as $w) {
-                    [$key, $op, $val] = explode(' ', $w, 3);
-                    $ws .= "$key $op :".str_replace('.','_',$key);
-                }
-            }
-            $ls = empty($limit) ? "" : " LIMIT $limit";
+    //    try {
+    //        $ws = "";
+    //        if (!empty($where)) {
+    //            $ws = " WHERE ";
+    //            foreach ($where as $w) {
+    //                [$key, $op, $val] = explode(' ', $w, 3);
+    //                $ws .= "$key $op :".str_replace('.','_',$key);
+    //            }
+    //        }
+    //        $ls = empty($limit) ? "" : " LIMIT $limit";
 
-            $columns = [
-                "{$thisTable['name']}.id", 
-                "{$thisTable['name']}.createdate", 
-                "{$thisTable['name']}.modifieddate",
-                "{$thisTable['name']}.deleted"
-            ];
-            $arrayColumns = [];
+    //        $columns = [
+    //            "{$thisTable['name']}.id", 
+    //            "{$thisTable['name']}.createdate", 
+    //            "{$thisTable['name']}.modifieddate",
+    //            "{$thisTable['name']}.deleted"
+    //        ];
+    //        $arrayColumns = [];
 
-            $js = "";
-            foreach ($thisTable['columns'] as $column) {
-                switch ($column['class']) {
-                case 1:
-                    $columns[] = "{$thisTable['name']}.{$column['name']}";
-                    break;
-                }
-            }
-            foreach ($joinTables as $table) {
-                $columns[] = "{$table['name']}.id AS {$table['prefix']}_id";
-                $columns[] = "{$table['name']}.createdate AS {$table['prefix']}_createdate";
-                $columns[] = "{$table['name']}.modifieddate AS {$table['prefix']}_modifieddate";
-                $columns[] = "{$table['name']}.deleted AS {$table['prefix']}_deleted";
-                switch ($table['referenceType']) {
-                case "left":
-                    $js .= " LEFT JOIN {$table['name']} ON {$table['referenceTable']}.{$table['name']}_id = {$table['name']}.id";
-                    break;
-                case "right":
-                    $js .= " LEFT JOIN {$table['name']} ON {$table['referenceTable']}.id = {$table['name']}.{$table['referenceTable']}_id";
-                    $arrayColumns[] = "{$table['prefix']}_id";
-                    $arrayColumns[] = "{$table['prefix']}_createdate";
-                    $arrayColumns[] = "{$table['prefix']}_modifieddate";
-                    $arrayColumns[] = "{$table['prefix']}_deleted";
-                    foreach ($table['columns'] as $column) $arrayColumns[] = "{$table['prefix']}_{$column['name']}";
-                    $order .= ",{$table['name']}_id";
-                    break;
-                }
-                foreach ($table['columns'] as $column) {
-                    switch ($column['class']) {
-                        case 1:
-                        $columns[] = "{$table['name']}.{$column['name']} AS {$table['prefix']}_{$column['name']}";
-                        break;
-                    }
-                }
-            }
-            $order .= " ASC";
-            //echo "SELECT ".join(",",$columns)." FROM {$thisTable['name']}$js$ws ORDER $order$ls\n";
-            $stmtStr = "SELECT ".join(",",$columns)." FROM {$thisTable['name']}$js$ws ORDER $order$ls\n";
-            $stmt = $this->db->prepare(
-                "SELECT ".join(",",$columns)." "
-                ."FROM {$thisTable['name']}$js$ws ORDER $order$ls"
-            );
-            if (!empty($where)) {
-                foreach ($where as $w) {
-                    [$key, $op, $val] = explode(' ', $w, 3);
-                    $stmt->bindValue(":".str_replace('.','_',$key), $val);
-                }
-            }
-            $stmt->execute();
-            $stmt->setFetchMode(PDO::FETCH_ASSOC);
-            $data = [];
-            while ($row = $stmt->fetch()) {
-                if ($row['deleted']) {
-                    $data[$row['id']] = ['deleted' => true];
-                    continue;
-                }
-                $firstOccurence = !array_key_exists($row['id'], $data); // rows that have the same id only add to array columns
-                if ($firstOccurence) $data[$row['id']] = [];
-                foreach ($row as $key => $val) {
-                    if ($key === "id" || $key === "deleted") continue;
-                    // if this is not the first occurence and it is not an arraycolumn, skip it.
-                    $arrayColumn = in_array($key, $arrayColumns);
-                    if (!$firstOccurence && !$arrayColumn) continue; 
+    //        $js = "";
+    //        foreach ($thisTable['columns'] as $column) {
+    //            switch ($column['class']) {
+    //            case 1:
+    //                $columns[] = "{$thisTable['name']}.{$column['name']}";
+    //                break;
+    //            }
+    //        }
+    //        foreach ($joinTables as $table) {
+    //            $columns[] = "{$table['name']}.id AS {$table['prefix']}_id";
+    //            $columns[] = "{$table['name']}.createdate AS {$table['prefix']}_createdate";
+    //            $columns[] = "{$table['name']}.modifieddate AS {$table['prefix']}_modifieddate";
+    //            $columns[] = "{$table['name']}.deleted AS {$table['prefix']}_deleted";
+    //            switch ($table['referenceType']) {
+    //            case "left":
+    //                $js .= " LEFT JOIN {$table['name']} ON {$table['referenceTable']}.{$table['name']}_id = {$table['name']}.id";
+    //                break;
+    //            case "right":
+    //                $js .= " LEFT JOIN {$table['name']} ON {$table['referenceTable']}.id = {$table['name']}.{$table['referenceTable']}_id";
+    //                $arrayColumns[] = "{$table['prefix']}_id";
+    //                $arrayColumns[] = "{$table['prefix']}_createdate";
+    //                $arrayColumns[] = "{$table['prefix']}_modifieddate";
+    //                $arrayColumns[] = "{$table['prefix']}_deleted";
+    //                foreach ($table['columns'] as $column) $arrayColumns[] = "{$table['prefix']}_{$column['name']}";
+    //                $order .= ",{$table['name']}_id";
+    //                break;
+    //            }
+    //            foreach ($table['columns'] as $column) {
+    //                switch ($column['class']) {
+    //                    case 1:
+    //                    $columns[] = "{$table['name']}.{$column['name']} AS {$table['prefix']}_{$column['name']}";
+    //                    break;
+    //                }
+    //            }
+    //        }
+    //        $order .= " ASC";
+    //        //echo "SELECT ".join(",",$columns)." FROM {$thisTable['name']}$js$ws ORDER $order$ls\n";
+    //        $stmtStr = "SELECT ".join(",",$columns)." FROM {$thisTable['name']}$js$ws ORDER $order$ls\n";
+    //        $stmt = $this->db->prepare(
+    //            "SELECT ".join(",",$columns)." "
+    //            ."FROM {$thisTable['name']}$js$ws ORDER $order$ls"
+    //        );
+    //        if (!empty($where)) {
+    //            foreach ($where as $w) {
+    //                [$key, $op, $val] = explode(' ', $w, 3);
+    //                $stmt->bindValue(":".str_replace('.','_',$key), $val);
+    //            }
+    //        }
+    //        $stmt->execute();
+    //        $stmt->setFetchMode(PDO::FETCH_ASSOC);
+    //        $data = [];
+    //        while ($row = $stmt->fetch()) {
+    //            if ($row['deleted']) {
+    //                $data[$row['id']] = ['deleted' => true];
+    //                continue;
+    //            }
+    //            $firstOccurence = !array_key_exists($row['id'], $data); // rows that have the same id only add to array columns
+    //            if ($firstOccurence) $data[$row['id']] = []
+    //            foreach ($row as $key => $val) {
+    //                if ($key === "id" || $key === "deleted") continue;
+    //                // if this is not the first occurence and it is not an arraycolumn, skip it.
+    //                $arrayColumn = in_array($key, $arrayColumns);
+    //                if (!$firstOccurence && !$arrayColumn) continue; 
 
-                    if ($arrayColumn) { // these columns need to become arrays.
-                        if ($firstOccurence) $data[$row['id']][$key] = [$val];
-                        else $data[$row['id']][$key][] = $val;
-                    } else {
-                        $data[$row['id']][$key] = $val;
-                    }
-                }
-            }
-            return ['success' => True, 'data' => $data];
-        } catch (PDOException $e) {
-            //echo "Error: ".$e->getMessage()."\n";
-            return ['success' => False, 'errormsg' =>
-                "dbSelectJoin: Error fetching data from table(s) based on {$thisTable['name']}: ".$e->getMessage()."\nQuery:\n".$stmtStr];
-        }
-    }
+    //                if ($arrayColumn) { // these columns need to become arrays.
+    //                    if ($firstOccurence) $data[$row['id']][$key] = [$val];
+    //                    else $data[$row['id']][$key][] = $val;
+    //                } else {
+    //                    $data[$row['id']][$key] = $val;
+    //                }
+    //            }
+    //        }
+    //        return ['success' => True, 'data' => $data];
+    //    } catch (PDOException $e) {
+    //        //echo "Error: ".$e->getMessage()."\n";
+    //        return ['success' => False, 'errormsg' =>
+    //            "dbSelectJoin: Error fetching data from table(s) based on {$thisTable['name']}: ".$e->getMessage()."\nQuery:\n".$stmtStr];
+    //    }
+    //}
 
     /*
      * Execute arbitrary sql queries

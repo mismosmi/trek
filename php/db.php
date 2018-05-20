@@ -23,8 +23,7 @@ echo $db->getHead();
   </div>
 <?php echo $db->getDbNav(); ?>
  </div>
- <div class="container">
-<?php echo $db->getTable(); ?>
+ <div class="container" id="trek-container">
  </div>
 </section>
 <?php echo $db->getScript(); ?>

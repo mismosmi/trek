@@ -1,133 +1,360 @@
 "use strict";
-/*
- * Should contain all cached content from the database
- */
+
+class TrekSmartInput {
+  
+  constructor(column, value, target, onUpdate, suggestionModel) {
+    this.column = column;
+    this.onUpdate = onUpdate;
+    console.log('creating input ',column,', onUpdate:',onUpdate);
+
+    this.input = document.createElement('input');
+    this.input.classList.add('input');
+    this.input.type = 'text';
+    this.isValid = !this.column.required || value !== '';
+    this.input.placeholder = column.title;
+    this.input.value = value;
+    this.input.addEventListener('input', () => this.update());
+    target.appendChild(this.input);
+    this.hasActiveSuggestion = false;
+
+
+    // suggestion system
+    let makeSuggestion = false;
+    let updateSuggestion;
+
+    if (column.class === 3) { // Foreign Key
+      makeSuggestion = true;
+      updateSuggestion = () => {
+        const search = this.input.value;
+        this.suggestion.table.innerHTML = '';
+        suggestionModel.forAllAsc( (row, id) => {
+          const idStr = id.toString();
+          if (idStr.startsWith(search)) {
+            const tr = document.createElement('tr');
+            tr.setAttribute('data-suggestion', id);
+            suggestionModel.columns.forEach( (col) => {
+              switch (col.class) {
+                case 0: // Meta Column
+                  if (col.name === 'id') tr.innerHTML += `<td><b>${search}</b>${idStr.slice(search.length)}</td>`;
+                  break;
+                case 1: // Data Column
+                  tr.innerHTML += `<td>${row[col.name]}</td>`;
+                  break;
+              }
+            });
+            tr.addEventListener('click', () => this.suggestion.accept(id) );
+            tr.addEventListener('mousemove', event => this.suggestion.select(event.currentTarget) );
+            this.suggestion.table.appendChild(tr);
+          }
+        });
+        this.suggestion.current = this.suggestion.table.firstChild;
+        if (this.suggestion.current === null) return false;
+        this.suggestion.current.classList.add('has-background-primary');
+        return true;
+      };
+    } else if (column.class === 1 && column.type.startsWith('VARCHAR')) { // Data Column of type Text
+      makeSuggestion = true;
+      updateSuggestion = () => {
+        const filteredResults = new Set();
+        const search = this.input.value;
+        suggestionModel.forAllAsc( (row, id) => {
+          if (
+            row[column.name] !== '' &&
+            row[column.name].indexOf(search) !== -1
+          ) filteredResults.add(row[column.name]);
+        });
+        if (filteredResults.size === 0) filteredResults.add(search);
+
+        this.suggestion.table.innerHTML = '';
+        filteredResults.forEach( (result) => {
+          const tr = document.createElement('tr');
+          tr.setAttribute('data-suggestion', result);
+          const index = result.indexOf(search);
+          tr.innerHTML = `<td>${result.slice(0, index)}<b>${search}</b>${result.slice(index + search.length)}</td>`;
+          tr.addEventListener('click', () => this.suggestion.accept(result) );
+          tr.addEventListener('mousemove', event => this.suggestion.select(event.currentTarget) );
+          this.suggestion.table.appendChild(tr);
+        });
+        this.suggestion.current = this.suggestion.table.firstChild;
+        this.suggestion.current.classList.add('has-background-primary');
+        return true;
+      };
+    }
+
+
+    // generate suggestion for foreign keys and text inputs
+    if (makeSuggestion) {
+      this.suggestion = {
+        box: document.createElement('div'),
+        table: document.createElement('table'),
+        update: updateSuggestion,
+        accept: (value) => {
+          console.log('accept suggestion');
+          this.suggestion.hasMouse = false;
+          this.input.value = value;
+          this.suggestion.hide();
+          this.isValid = true;
+          this.onUpdate(value);
+        },
+        select: (target) => {
+          this.suggestion.hasMouse = true;
+          this.suggestion.current.classList.remove('has-background-primary');
+          this.suggestion.current = target;
+          target.classList.add('has-background-primary');
+        },
+        show: () => {
+          this.suggestion.box.style.display = '';
+          this.hasActiveSuggestion = true;
+        },
+        hide: () => {
+          if (!this.suggestion.hasMouse) {
+            this.suggestion.box.style.display = 'none';
+            this.hasActiveSuggestion = false;
+          }
+        },
+        hasMouse: false
+      }
+      this.suggestion.box.classList.add('box', 'suggestion', 'is-paddingless');
+      this.suggestion.table.classList.add('table','is-hoverable');
+      this.suggestion.box.appendChild(this.suggestion.table);
+      this.suggestion.box.style.position = 'absolute';
+      this.suggestion.table.addEventListener('mouseleave', () => this.suggestion.hasMouse = false );
+      this.input.addEventListener('focusin', () => this.suggestion.show() );
+      this.input.addEventListener('focusout', () => this.suggestion.hide() );
+      this.suggestion.update();
+      this.suggestion.hide();
+      this.input.insertAdjacentElement('afterend', this.suggestion.box);
+    }
+
+
+  }
+
+  // type validation
+  validate() {
+    console.log('validate',this.column.type,this.input.value);
+    if (this.column.type.startsWith('INT')) {
+      const match = this.input.value.match(/[0-9]*/);
+      if (match === null || match[0] !== this.input.value) { // incorrect input
+        this.input.classList.add('is-danger');
+        this.input.value = match[0];
+      } else this.input.classList.remove('is-danger'); // correct input
+    } else if (
+      this.column.type.startsWith('DOUBLE') ||
+      this.column.type.startsWith('REAL') ||
+      this.column.type.startsWith('EURO')
+    ) {
+      const match = this.input.value.match(/[0-9]*\.?[0-9]*/);
+      if (match === null || match[0] !== this.input.value) { // incorrect input
+        this.input.classList.add('is-danger');
+        this.input.value = match[0];
+      } else this.input.classList.remove('is-danger'); // correct input
+    }
+  }
+
+  update() {
+    // validate input
+    this.validate();
+
+    // update suggestion and update validity
+    this.isValid = (
+      this.suggestion === undefined || this.suggestion.update()
+    ) && (
+      !this.column.required || this.input.value !== ''
+    );
+
+    // callback
+    console.log('call onUpdate(',this.input.value,')');
+    this.onUpdate(this.input.value);
+  }
+}
+  
+
+
 class TrekTableModel {
 
-  // Construct TrekDatabase Object from data given in ajax payload
-  constructor(tableName, database, tableData) {
-    const columns = database.getTableColumns(tableName);
-
-    this.convertRowTypes = (row) => {
-      columns.forEach( (col) => {
-        const type = col.type.toUpperCase();
-        if (
-          type.startsWith('INT') ||
-          type.startsWith('EURO')
-        ) {
-          if (Array.isArray(row[col.name])) return row[col.name] = row[col.name].map( val => parseInt(val) );
-          return row[col.name] = parseInt(row[col.name]);
-        }
-        
-        if (
-          type.startsWith('BOOL')
-        ) {
-        if (Array.isArray(row[col.name])) return row[col.name] = row[col.name].map( val => val == true );
-          return row[col.name] = row[col.name] == true;
-        }
-
-        if (
-          type.startsWith('DOUBLE') ||
-          type.startsWith('REAL')
-        ) {
-        if (Array.isArray(row[col.name])) return row[col.name] = row[col.name].map( val => parseFloat(val) );
-          return row[col.name] = parseFloat(row[col.name]);
-        }
-      });
-      return row;
-    };
+  constructor(name, sheets, api) {
+    this.name = name;
+    this.api = api;
+    this.columns = sheets[name].columns;
+    this[''] = ''; // return empty string if requesting row from other table where id is not specified yet
 
 
-    // type conversion
-    Object.values(tableData).forEach(this.convertRowTypes);
-
-    // append all table-data to the database-object
-    Object.assign(this, tableData);
-
-    // attach accessort
-    columns.forEach( (col) => {
-      switch (col.class) {
-        case 0: // id, timestamp etc.
-          if (col.name === 'id') {
-            Object.defineProperty(this, 'id', {
-              get: () => {
-                if (this.currentId === 'new') return '';
-                return this.currentId;
-              }
-            });
-          } else {
-            Object.defineProperty(this, col.name, {
-              get: () => {
-                if (this.buffer !== undefined) return this.buffer[col.name];
-                return this[this.currentId][col.name];
-              }
-            });
+    // access to other tables
+    Object.entries(sheets).forEach( ([sheetName, sheet]) => {
+      const keyColumn = this.name + '_id';
+      if (sheetName !== this.name && sheet.columns.find( col => col.name === keyColumn ) !== undefined) {
+        Object.defineProperty(this, sheetName, {
+          get: () => {
+            console.log('get sheet',sheetName, 'currentId',this.currentId);
+            return sheets[sheetName].model.filter( row => row[keyColumn] == this.currentId );
           }
+        });
+      }
+    });
+
+    
+    // attach accessors
+    // generate defaultRow
+    this.defaultRow = {};
+    this.columns.forEach( (col) => {
+      this.defaultRow[col.name] = col.default === undefined ? '' : col.default;
+
+      switch (col.class) {
+        case 0: // Meta Column
+        case 2: // Auto Column
+          Object.defineProperty(this, col.name, {
+            get: () => {
+              //console.log('get ',this.currentId,col.name);
+              return this[this.currentId][col.name];
+            }
+          });
           break;
         case 1: // Data Column
           Object.defineProperty(this, col.name, {
             get: () => {
-              if (this.buffer !== undefined) return this.buffer[col.name] ? this.buffer[col.name] : '';
-              return this[this.currentId][col.name] ? this[this.currentId][col.name] : '';
+              //console.log('get ',this.currentId,col.name);
+              return this[this.currentId][col.name];
             },
             set: (value) => {
-              const type = col.type.toUpperCase();
-              if (type.startsWith('INT')) return this.buffer[col.name] = parseInt(value);
+              console.log('set', col.name, value);
+              if (col.type.startsWith('INT')) return this.buffer[col.name] = parseInt(value);
               
-              if (type.startsWith('BOOL')) return this.buffer[col.name] = (value == true || value == 'true');
+              if (col.type.startsWith('BOOL')) return this.buffer[col.name] = (value == true || value == 'true');
 
-              if (type.startsWith('DOUBLE') || type.startsWith('REAL')) return this.buffer[col.name] = parseFloat(value);
+              if (col.type.startsWith('DOUBLE') || col.type.startsWith('REAL')) return this.buffer[col.name] = parseFloat(value);
 
-              if (type.startsWith('EURO')) return this.buffer[col.name] = Math.round(parseFloat(value) * (10**4));
+              if (col.type.startsWith('EURO')) return this.buffer[col.name] = Math.round(parseFloat(value) * (10**4));
 
-              this.bufferChanged = true;
-              return this.buffer[col.name] = value;
+              this.buffer[col.name] = value;
+              this.run(this.buffer, 'buffer');
+              this.onBufferChanged(this.buffer);
             }
-          });
-          break;
-        case 2: // Auto Column
-          Object.defineProperty(this, col.name, {
-            get: () => {
-              return col.run(this);
-            }
-          });
-          col.tables.forEach( (referencedTable) => {
-            Object.defineProperty(this, tableName, {
-              get: () => {
-                return Object.values(db.getTable(referencedTable)).filter( row => row[tableName + '_id'] === this.currentId );
-              }
-            });
           });
           break;
         case 3: // Foreign Key
           Object.defineProperty(this, col.name, {
             get: () => {
-              if (this.buffer !== undefined) return (this.buffer[col.name]) ? this.buffer[col.name] : '';
-              return (this[this.currentId][col.name]) ? this[this.currentId][col.name] : '';
+              //console.log('get ',this.currentId,col.name);
+              return this[this.currentId][col.name];
             },
             set: (value) => {
+              console.log('set', col.name, value);
               // foreign keys are always ints
-              this.bufferChanged = true;
-              return this.buffer[col.name] = parseInt(value);
+              this.buffer[col.name] = parseInt(value);
+              this.run(this.buffer, 'buffer');
+              this.onBufferChanged(this.buffer);
             }
           });
           Object.defineProperty(this, col.table, {
             get: () => {
-              if (this.buffer !== undefined) return this.buffer[col.name] ? db.getTable(col.table)[this.buffer[col.name]] : '';
-              return this[this.currentId][col.name] ? db.getTable(tableName)[this[this.currentId][col.name]] : '';
+              return sheets[col.table].model.at(this[this.currentId][col.name]);
             }
           });
           break;
-        case 4: // Foreign Column
-          Object.defineProperty(this, col.name, {
-            get: () => {
-              if (this.buffer !== undefined) return this.buffer[col.name] ? this.buffer[col.name] : '';
-              return this[this.currentId][col.name] ? this[this.currentId][col.name] : '';
-            }
-          });
       }
     });
 
+  }
+
+  at(id) {
+    this.sync();
+    if (id) this.currentId = id;
+    else this.currentId = 'defaultRow';
+    this.filterFn = row => true;
+    return this;
+  }
+
+  filterFn() { return true; }
+  filter(filterFn) {
+    this.sync();
+    this.filterFn = filterFn;
+    return this;
+  }
+
+  // callback functions
+  onBufferChanged(buffer) {}
+  onRowDeleted(id) {}
+  onRowChanged(id) {}
+
+  clear() {
+    this.filterFn = row => true;
+    this.onBufferChanged = buffer => {};
+    this.onRowDeleted = id => {};
+    this.onRowChanged = id => {};
+    if (this.syncTimeout !== undefined) {
+      clearTimeout(this.syncTimeout);
+      this.syncTimerout = undefined;
+    }
+  }
+
+  run(row, id) {
+    if (typeof row !== 'object') row = this[row];
+    this.currentId = (id === undefined) ? row.id : id;
+    this.columns.forEach( (col) => {
+      switch (col.class) {
+        case 2: // Auto Column
+          row[col.name] = col.run(this);
+          break;
+      }
+    });
+    return row;
+  }
+
+  update(data) {
+    const arrData = Object.values(data);
+    arrData.forEach( (row) => {
+      if (row.deleted) this[row.id] = undefined;
+      else this[row.id] = this.parseRow(row);
+    });
+    arrData.forEach( (row) => {
+      if (row.deleted) {
+        this.onRowDeleted(row.id);
+      } else {
+        this.run(row);
+        this.onRowChanged(row.id);
+      }
+    });
+  }
+
+  repaint(data = {}) {
+    Object.values(data).forEach( (row) => {
+      if (row.deleted) this[row.id] = undefined;
+      else this[row.id] = this.parseRow(row);
+    });
+    this.filterFn = () => true;
+    this.forAllDesc( (row, id) => {
+      this.run(row, id);
+      this.onRowChanged(id);
+    });
+  }
+    
+
+  parseRow(row) {
+    this.columns.forEach( (col) => {
+      if (
+        col.type.startsWith('INT') ||
+        col.type.startsWith('EURO')
+      ) {
+        if (Array.isArray(row[col.name])) return row[col.name] = row[col.name].map( val => parseInt(val) );
+        return row[col.name] = parseInt(row[col.name]);
+      }
+      
+      if (
+        col.type.startsWith('BOOL')
+      ) {
+      if (Array.isArray(row[col.name])) return row[col.name] = row[col.name].map( val => val == true );
+        return row[col.name] = row[col.name] == true;
+      }
+
+      if (
+        col.type.startsWith('DOUBLE') ||
+        col.type.startsWith('REAL')
+      ) {
+      if (Array.isArray(row[col.name])) return row[col.name] = row[col.name].map( val => parseFloat(val) );
+        return row[col.name] = parseFloat(row[col.name]);
+      }
+    });
+    return row;
   }
 
   // find largest numerical index
@@ -135,7 +362,7 @@ class TrekTableModel {
     let max = 0;
     Object.keys(this).forEach( (key) => {
       const index = parseInt(key);
-      if (!isNaN(index) && max < index) max = index;
+      if (!isNaN(index) && this.filterFn(this[index]) && max < index) max = index;
     });
     return max;
   }
@@ -145,25 +372,25 @@ class TrekTableModel {
   forAll(doThis) {
     Object.keys(this).forEach( (key) => {
       const index = parseInt(key);
-      if (!isNaN(index)) {
-        doThis(this[key],index);
+      if (!isNaN(index) && this.filterFn(this[index])) {
+        doThis(this[index], index);
       }
     });
   }
 
   // Loop over all rows in ascending order
-  forAllAsc(doThis) {
-    for (var index = 1; index <= this.getMaxIndex(); index++) {
-      if (this[index] !== undefined) {
+  forAllAsc(doThis, minIndex = 1, maxIndex = this.getMaxIndex()) {
+    for (var index = minIndex; index <= maxIndex; index++) {
+      if (this[index] !== undefined && this.filterFn(this[index])) {
         doThis(this[index], index);
       }
     }
   }
 
   // Loop over all rows in descending order
-  forAllDesc(doThis) {
-    for (var index = this.getMaxIndex(); index > 0; index--) {
-      if (this[index] !== undefined) {
+  forAllDesc(doThis, minIndex = 1, maxIndex = this.getMaxIndex()) {
+    for (var index = maxIndex; index >= minIndex; index--) {
+      if (this[index] !== undefined && this.filterFn(this[index])) {
         doThis(this[index], index);
       }
     }
@@ -172,90 +399,41 @@ class TrekTableModel {
   // Loop over rows up to currentId
   forEach(doThis, maxIndex = this.currentId) {
     for (var index = 1; index < maxIndex; index++) {
-      if (this[index] !== undefined) {
-        doThis(this[index], index);
+      if (this[index] !== undefined && this.filterFn(this[index])) {
+        this.currentId = index;
+        doThis(this, index);
       }
     }
   }
 
   // copy a row to buffer in order to edit non-destructively
   edit(id) {
-    if (id === 'new') this.buffer = {};
+    if (id === 'new') {
+      this.buffer = Object.assign({}, this.defaultRow);
+      this.run(this.buffer, 'buffer');
+    }
     else this.buffer = Object.assign({}, this[id]);
-    this.bufferChanged = false;
-    this.currentId = id;
+    this.currentId = 'buffer';
   }
 
   editDone() {
     this.buffer = undefined;
-    this.bufferChanged = undefined;
   }
 
-  sum(data) {
-    if (data.length === 0) return 0;
-    return data.reduce((accumulator, currentValue) => accumulator + currentValue );
+  sum(column) {
+    let sum = 0;
+    this.forAll( row => sum += row[column] );
+    return sum;
   }
 
-  avg(data) {
-    if (data.length === 0) return 0;
-    return this.sum(data) / data.length;
-  }
-
-}
-
-class TrekTableView {
-
-  // construct from data given in ajax payload
-  constructor(tableName, database, model) {
-    this.dom = document.getElementById('trek-table');
-    this.body = this.dom.getElementsByTagName('tbody')[0];
-    this.head = this.dom.getElementsByTagName('thead')[0];
-    this.columns = database.getTableColumns(tableName);
-    this.model = model;
-    // generate "new"-row
-    this.newRow = document.createElement('tr');
-    this.newRow.id = 'new';
-    this.newRow.innerHTML = `<td colspan="${this.columns.length + 1}"><div class="columns is-centered"><div class="column is-6"><span class="button is-fullwidth is-primary">New Entry</span></div></div></td>`;
-    this.newRow.addEventListener('click', (event) => {
-      Trek.editThis(event)
+  avg(column) {
+    let length = 0;
+    let sum = 0;
+    this.forAll( (row) => {
+      sum += row[column];
+      length++;
     });
-  }
-
-  getTypedFormat(col) {
-    switch (col.type) {
-      case 'EURO':
-        if (!this.model[col.name]) return '';
-        return (this.model[col.name] * (10**-4)).toFixed(2);
-      default:
-        return this.model[col.name];
-    }
-  }
-
-  // get column by name
-  getColumnByName(colName) {
-    return this.columns.find( (col) => {
-      return col.name === colName;
-    });
-  }
-
-  // generate row formatted as tr
-  getRow(id) {
-    const tr = document.createElement('tr');
-    tr.id = id;
-    this.model.currentId = id;
-    this.columns.forEach( (col) => {
-      switch (col.class) {
-        case 4:
-          break;
-        default:
-          tr.innerHTML += `<td data-col="${col.name}">${this.getTypedFormat(col)} ${col.symbol}</td>`;
-      }
-    });
-    tr.innerHTML += '<td></td>'; // empty td for control column
-    tr.addEventListener('click', (event) => {
-      Trek.editThis(event)
-    });
-    return tr;
+    return sum / length;
   }
 
   // return only data and foreign key fields for ajax requests
@@ -264,115 +442,135 @@ class TrekTableView {
     this.columns.forEach( (col) => {
       switch (col.class) {
         case 1:
-          if (this.model.buffer[col.name] === 0 || this.model.buffer[col.name]) data[col.name] = this.model.buffer[col.name];
+          if (this.buffer[col.name] === 0 || this.buffer[col.name]) data[col.name] = this.buffer[col.name];
           break;
         case 3:
-          if (this.model.buffer[col.name]) data[col.name] = this.model.buffer[col.name];
+          if (this.buffer[col.name]) data[col.name] = this.buffer[col.name];
           break;
       }
     });
     return data;
   }
-          
 
-
-  // generate table head
-  getHeadRow() {
-    const tr = document.createElement('tr');
-    this.columns.forEach( (col) => {
-      switch (col.class) {
-        case 4:
-          break;
-        default:
-          tr.innerHTML += `<th>${col.title}</th>`;
+  // api requests
+  sync(repaint = false, onSuccess, onError) {
+    const currentClientTime = Date.now();
+    const onSuccessFn = (response) => {
+      this.lastUpdate = {
+        server: response.time,
+        client: currentClientTime
+      };
+      if (repaint) this.repaint(response.data);
+      else this.update(response.data);
+      // if syncTimeout is set reset timeout to 5 min
+      if (this.syncTimeout !== undefined) {
+        if (this.syncTimeout !== true) clearTimeout(this.syncTimeout);
+        this.syncTimeout = setTimeout(() => this.sync(), 300000);
       }
-    });
-    tr.innerHTML += '<th></th>'; // empty header for controls-column
-    return tr;
-  }
-
-  // generate form
-  getFormRow(id) {
-    const tr = document.createElement('tr');
-    tr.id = id;
-    // loop columns
-    this.columns.forEach( (col) => {
-      switch (col.class) {
-        case 1: // Data Column
-        case 3: // Foreign Key
-          // add an input here
-          const type = col.type.toUpperCase();
-          let inputtype = 'text';
-          if (
-            type.startsWith('INT') || 
-            type.startsWith('EURO') || 
-            type.startsWith('DOUBLE') || 
-            type.startsWith('REAL')
-          ) inputtype = 'number';
-
-          const handleSuggestion = inputtype === 'text' ? ` onfocusin="Trek.makeSuggestion(this)" onfocusout="Trek.closeSuggestion(this)"` : '';
-          const isRequired = col.required === true ? ' required' : '';
-
-          console.log('col.name: ',col.name,' col.required: ',col.required);
-          tr.innerHTML += `<td data-col="${col.name}" class="control"><input class="input${isRequired}" type="text" placeholder="${col.title}" value="${this.getTypedFormat(col)}" oninput="Trek.updateForm(this)"${handleSuggestion}> ${col.symbol}</td>`;
-          break;
-        case 4: // Foreign Column
-          break;
-        default:
-          tr.innerHTML += `<td data-col="${col.name}">${this.model[col.name] ? this.model[col.name] : ''}</td>`;
+      if (typeof onSuccess === 'function') onSuccess();
+    }
+    if (this.lastUpdate === undefined) {
+      this.api.xhrRequest(
+        {operation: 'SELECT', tableName: this.name},
+        onSuccessFn,
+        onError
+      );
+    } else {
+      // skip if less than 20 sec since last update
+      if(currentClientTime - this.lastUpdate.client < 20000) {
+        if (repaint) this.repaint();
+        return;
       }
-    });
-
-    const controlTd = document.createElement('td');
-    controlTd.classList.add('buttons','has-addons');
-    controlTd.innerHTML = `<span class="button is-link" id="trek-save" onclick="Trek.saveThis(this)" disabled>Save</span><span class="button" id="trek-cancel" onclick="Trek.cancelThis(this)">Cancel</span>`;
-    if (id !== 'new') controlTd.innerHTML += `<span class="button is-danger" id="trek-delete" onclick="Trek.deleteThis(this)">Delete</span>`
-    tr.appendChild(controlTd);
-    return tr;
+      this.api.xhrRequest(
+        {operation: 'SELECT', tableName: this.name, lastUpdate: this.lastUpdate.server},
+        onSuccessFn,
+        onError
+      );
+    }
   }
-
-  // update table body with changed rows
-  update(tableData) {
-    Object.keys(tableData).forEach( (id) => {
-      const tr = document.getElementById(id);
-      if (tableData[id].deleted) {
-        if (this.model[id] !== undefined) {
-          this.model[id] = undefined;
-          this.body.removeChild(tr);
-        }
-      } else {
-        this.model[id] = this.model.convertRowTypes(tableData[id]);
-        if (tr === null) {
-          let nextSmallerId = id - 1;
-          while (this.model[nextSmallerId] === undefined && nextSmallerId > 0) {
-            nextSmallerId--;
-          }
-          if (nextSmallerId === 0) this.body.appendChild(this.getRow(id));
-          else this.body.insertBefore(this.getRow(id), document.getElementById(nextSmallerId));
-        } else {
-          this.body.replaceChild(this.getRow(id), tr);
-        }
-      }
-    });
+  insert(onSuccess, onError) {
+    this.api.xhrRequest(
+      {
+        operation: 'INSERT', 
+        tableName: this.name, 
+        lastUpdate: this.lastUpdate.server, 
+        data: this.getFormData()
+      },
+      (response) => { // onSuccess
+        this.lastUpdate = {
+          server: response.time,
+          client: Date.now()
+        };
+        this.editDone();
+        this.update(response.data);
+        if (typeof onSuccess === 'function') onSuccess();
+      },
+      onError
+    );
   }
+  alter(id, onSuccess, onError) {
+    this.api.xhrRequest(
+      {
+        operation: 'ALTER',
+        tableName: this.name,
+        lastUpdate: this.lastUpdate.server,
+        row: id,
+        data: this.getFormData()
+      },
+      (response) => { // onSuccess
+        this.lastUpdate = {
+          server: response.time,
+          client: Date.now()
+        };
+        this.editDone();
+        this.update(response.data);
+        if (typeof onSuccess === 'function') onSuccess();
+      },
+      onError
+    );
+  }
+  delete(id, onSuccess, onError) {
+    this.api.xhrRequest(
+      {
+        operation: 'DELETE',
+        tableName: this.name,
+        lastUpdate: this.lastUpdate.server,
+        row: id
+      },
+      (response) => { // onSuccess
+        this.lastUpdate = {
+          server: response.time,
+          client: Date.now()
+        };
+        this.editDone();
+        this.update(response.data);
+        if (typeof onSuccess === 'function') onSuccess();
+      },
+      onError
+    );
+  }
+  
 
 }
 
 
-class TrekDatabase {
-  
-  // request entry table from database
-  constructor(settings) {
-    // copy passed-in settings
-    Object.assign(this, settings);
-    // find active tab to reduce DOM calls for tab switching
-    this.activeTab = document.querySelector('#trek-db-nav li[data-table="'+this.tableName+'"]');
-    // fetch initial data from server
-    this.selectTable();
-    // we are not in edit mode
+class TrekTableView {
+
+  constructor(model) {
+    // create table and append to content-container
+    const container = document.getElementById('trek-container');
+    container.innerHTML = '';
+    this.table = document.createElement('table');
+    this.table.classList.add('table');
+    container.appendChild(this.table);
+    this.head = document.createElement('thead');
+    this.table.appendChild(this.head);
+    this.body = document.createElement('tbody');
+    this.table.appendChild(this.body);
+
     this.editMode = false;
-    // find editButton and add toggle function on click
     this.editButton = document.getElementById('trek-edit-button');
+    this.editButton.disabled = false;
     this.editButton.addEventListener('click', () => {
       // toggle edit mode
       if (this.editMode) {
@@ -382,96 +580,226 @@ class TrekDatabase {
       }
     });
 
-    // add Keyboard shortcuts
-    document.addEventListener('keydown', (event) => {
-      //console.log(event.key);
-      if (this.formRow === undefined) { // no active form
-        switch (event.key) {
-          case 'Enter':
-            this.table.model.edit('new');
-            this.formRow = this.table.getFormRow('new');
-            this.formRow.saveButton = this.formRow.querySelector('span#trek-save');
-            this.table.body.replaceChild(this.formRow, document.getElementById('new'));
-            const input = this.formRow.querySelector('input');
-            if (input !== null) input.focus();
-            break;
+    this.model = model;
+
+    // generate and save newRow 
+    this.newRow = document.createElement('tr');
+    this.newRow.id = 'new';
+    this.newRow.innerHTML = `<td colspan="${this.model.columns.length + 1}"><div class="columns is-centered"><div class="column is-6"><span class="button is-fullwidth is-primary">New Entry</span></div></div></td>`;
+    this.newRow.addEventListener('click', (event) => this.edit(event) );
+
+
+    this.editMode = false;
+    // generate initial table content
+    this.head.innerHTML = '';
+    this.head.appendChild(this.getHeadRow());
+    this.body.innerHTML = '';
+    this.body.appendChild(this.newRow);
+      
+    // push url including table
+    const url = new URL(document.location.href);
+    url.searchParams.set('table', this.model.name);
+    window.history.pushState({
+      viewClass: this.constructor.name,
+      modelName: this.model.name,
+      lastUpdate: this.model.lastUpdate 
+    }, '', url.pathname + url.search);
+
+    // set callback actions
+    // update autocolumns in formrow
+    this.model.onBufferChanged = (buffer) => {
+      this.forEachColumn( (col) => {
+        switch (col.class) {
+          case 2: // Auto Column
+            const val = buffer[col.name];
+            const td = this.formRow.querySelector('td[data-col="'+col.name+'"]');
+            if (val !== td.textContent) td.textContent = val;
         }
-        if (this.editMode) { // edit mode, no active form
-          switch (event.key) {
-            case 'Escape':
-              this.exitEditMode();
-              break;
+      });
+    };
+
+    // remove deleted row
+    this.model.onRowDeleted = (id) => {
+      this.body.removeChild(document.getElementById(id));
+    };
+
+    // update row or append in right place if new
+    this.model.onRowChanged = (id) => {
+      const tr = document.getElementById(id);
+      if (tr === null) {
+        let nextSmallerId = parseInt(id);
+        let nextRow;
+        do {
+          nextSmallerId--;
+          if (nextSmallerId === 0) {
+            this.body.appendChild(this.getRow(id));
+            return;
           }
-        } else { // no edit mode, no active form
-          switch (event.key) {
-            case 'e':
-              this.enterEditMode();
-              break;
-          }
-        }
-      } else { // active form
-        if (this.suggestion === undefined) { // no active suggestion
-          switch (event.key) {
-            case 'Enter':
-              this.saveThis(this.formRow.saveButton);
-              break;
-            case 'Escape':
-              this.cancelThis();
-              break;
-            case 'ArrowDown':
-              const activeElement = document.activeElement;
-              if (activeElement.nodeName === 'INPUT') this.makeSuggestion(activeElement, '');
-              break;
-          }
-        } else { // active suggestion
-          switch (event.key) {
-            case 'Escape':
-              this.suggestion.box.parentNode.removeChild(this.suggestion.box);
-              this.suggestion = undefined;
-              break;
-            case 'ArrowDown':
-              this.chooseSuggestion(this.suggestion.current.nextSibling);
-              break;
-            case 'ArrowUp':
-              this.chooseSuggestion(this.suggestion.current.previousSibling);
-              break;
-            case 'Enter':
-              console.log('Enter, suggestion: ',this.suggestion);
-              this.acceptSuggestion(this.suggestion.current);
-              break;
-          }
-        }
+          nextRow = document.getElementById(nextSmallerId);
+        } while (nextRow === null)
+        this.body.insertBefore(this.getRow(id), nextRow);
+        return;
+      }
+      this.body.replaceChild(this.getRow(id), tr);
+      return;
+    };
+
+    // automatically refresh this model every 5 min
+    this.model.syncTimeout = true;
+
+    // asynchronously pull content per ajax request, append table-rows per callback
+    setTimeout(() => this.model.sync(true));
+
+  }
+
+    
+  // if column type is a currency convert to float for correct display
+  getDisplayFormat(col) {
+    const val = this.model[col.name]
+    switch (col.type) {
+      case 'EURO':
+        if (val === 0 || val) return (val * (10**-4)).toFixed(2);
+        else return '0.00';
+      default:
+        if (val === 0 || val) return val;
+        else return '';
+    }
+  }
+
+  // shortcuts to access columns
+  forEachColumn(doThis) {
+    this.model.columns.forEach(doThis);
+  }
+  getColumnByName(name) {
+    return this.model.columns.find( col => col.name === name );
+  }
+
+  // generate row formatted as tr
+  getRow(id) {
+    console.log('getRow(',id,')');
+    const tr = document.createElement('tr');
+    tr.id = id;
+    this.model.at(id);
+    this.forEachColumn( (col) => {
+      const val = this.getDisplayFormat(col);
+      tr.innerHTML += `<td data-col="${col.name}">${val} ${val ? col.symbol : ''}</td>`;
+    });
+    tr.innerHTML += '<td></td>'; // empty td for control column
+    tr.addEventListener('click', event => this.edit(event) );
+    return tr;
+  }
+
+  // generate table head
+  getHeadRow() {
+    const tr = document.createElement('tr');
+    this.forEachColumn( col => tr.innerHTML += `<th>${col.title}</th>` );
+    tr.innerHTML += '<th></th>'; // empty header for controls-column
+    return tr;
+  }
+
+  // generate form
+  getFormRow(id) {
+    const tr = document.createElement('tr');
+    tr.id = id;
+    tr.inputs = [];
+
+    tr.validate = () => {
+      console.log('validate');
+      tr.isValid = true;
+      tr.inputs.forEach( (input) => {
+        if (!input.isValid) tr.isValid = false;
+      });
+      if (tr.isValid) {
+        tr.saveButton.removeAttribute('disabled');
+      } else {
+        tr.saveButton.setAttribute('disabled', true);
+      }
+    };
+
+
+    // loop columns
+    this.forEachColumn( (col) => {
+      const td = document.createElement('td');
+      tr.appendChild(td);
+      td.classList.add('control');
+      td.setAttribute('data-col', col.name);
+      let input;
+      switch (col.class) {
+        case 1: // Data Column
+          input = new TrekSmartInput(
+            col,  // column
+            this.getDisplayFormat(col), // value
+            td, // target
+            (value) => { // onUpdate
+              console.log('updating', col.name, 'with', value);
+              this.model[col.name] = value;
+              tr.validate()
+            }, 
+            this.model // suggestionModel
+          );
+          tr.inputs.push(input);
+          break;
+        case 3: // Foreign Key
+          input = new TrekSmartInput(
+            col, // column
+            this.getDisplayFormat(col), // value
+            td, // target 
+            (value) => { // onUpdate
+              this.model[col.name] = value;
+              tr.validate();
+            },            
+            this.model[col.table].at(0) // suggestionModel
+          );
+          tr.inputs.push(input);
+          break;
+
+        default:
+          td.innerHTML += this.getDisplayFormat(col);
+      }
+      if (col.symbol) {
+        const symbolspan = document.createElement('span');
+        symbolspan.innerHTML = col.symbol;
+        td.appendChild(symbolspan);
       }
     });
 
-    // search patterns for validity checking
-    this.pattern = {
-      integer: /[0-9]*/,
-      float: /[0-9]*\.?[0-9]*/,
-    };
+    const controlTd = document.createElement('td');
+    tr.appendChild(controlTd);
+    controlTd.classList.add('buttons','has-addons');
+    tr.saveButton = document.createElement('span'); // save this in formRow for later
+    controlTd.appendChild(tr.saveButton);
+    tr.saveButton.classList.add('button', 'is-link');
+    tr.saveButton.addEventListener('click', () => this.save() );
+    tr.saveButton.setAttribute('disabled', true);
+    tr.saveButton.textContent = 'Save';
+    tr.cancelButton = document.createElement('span');
+    controlTd.appendChild(tr.cancelButton);
+    tr.cancelButton.classList.add('button');
+    tr.cancelButton.addEventListener('click', () => this.cancel() );
+    tr.cancelButton.textContent = 'Cancel';
+    if (id !== 'new') {
+      tr.deleteButton = document.createElement('span');
+      controlTd.appendChild(deleteButton);
+      tr.deleteButton.classList.add('button', 'is-danger');
+      tr.deleteButton.addEventListener('click', () => this.delete() );
+      tr.deleteButton.textContent = 'Delete';
+    }
+
+
+    return tr;
   }
 
-  getTableColumns(tableName) {
-    return this.tableColumns[tableName];
-  }
-
-  getTable(tableName) {
-    return this.tableModels[tableName];
-  }
-
-  // trigger event when row is clicked
-  editThis(event) {
+  edit(event) {
     if (this.editMode || event.currentTarget.id === 'new') {
       // first close any other active form
-      this.cancelThis();
+      this.cancel();
       // save the column we clicked on to focus it later
       const targetColumn = event.target.getAttribute('data-col');
       // copy row values to buffer
-      this.table.model.edit(event.currentTarget.id);
+      this.model.edit(event.currentTarget.id);
       // replace row content with edit-form
-      this.formRow = this.table.getFormRow(event.currentTarget.id);
-      this.formRow.saveButton = this.formRow.querySelector('span#trek-save');
-      this.table.body.replaceChild(this.formRow, event.currentTarget);
+      this.formRow = this.getFormRow(event.currentTarget.id);
+      this.body.replaceChild(this.formRow, event.currentTarget);
       // find input in the right column if there is one and focus it
       let input = this.formRow.querySelector('td[data-col="'+targetColumn+'"] input');
       if (input !== null) input.focus();
@@ -483,418 +811,141 @@ class TrekDatabase {
     }
   }
 
-  saveThis(target) {
-    target.classList.add('is-loading');
+  save() {
+    this.formRow.saveButton.classList.add('is-loading');
+    const onError = () => { // onError
+      this.formRow.saveButton.classList.remove('is-loading');
+      this.formRow.classList.add('is-danger');
+    }
     if (this.formRow.id === 'new') {
-      this.insertRow(
-        this.table.getFormData(), 
+      this.model.insert( 
         () => { // onSuccess
-          target.classList.remove('is-loading');
-          this.table.body.replaceChild(this.table.newRow, this.formRow);
+          this.model.editDone();
+          this.body.replaceChild(this.newRow, this.formRow);
           this.formRow = undefined;
-        },
-        () => { // onError
-          target.classList.remove('is-loading');
-          this.formRow.classList.add('is-danger');
-        }
+        }, 
+        onError
       );
-    } else {
-      this.alterRow(
-        this.table.getFormData(), 
+    } else { // edit existing row
+      this.model.alter(
         this.formRow.id, 
         () => { // onSuccess
-          target.classList.remove('is-loading');
-          this.formRow = undefined;
+          this.formRow = undefined; 
+          this.model.editDone();
         },
-        () => { // onError
-          target.classList.remove('is-loading');
-          this.formRow.classList.add('is-danger');
-        }
+        onError
       );
     }
   }
 
-  cancelThis(target) {
-    this.table.model.editDone();
+  cancel() {
+    this.model.editDone();
     if (this.formRow !== undefined) {
-      console.log('cancelThis, formRow: ',this.formRow, ' newRow: ', this.table.newRow);
-      if (this.formRow.id === 'new') this.table.body.replaceChild(this.table.newRow, this.formRow);
-      else this.table.body.replaceChild(this.table.getRow(this.formRow.id), this.formRow);
+      if (this.formRow.id === 'new') this.body.replaceChild(this.newRow, this.formRow);
+      else this.body.replaceChild(this.getRow(this.formRow.id), this.formRow);
+      this.model.editDone();
       this.formRow = undefined;
     }
   }
 
-  deleteThis(target) {
-    target.classList.add('is-loading');
-    const onSuccess = () => {
-      target.classList.remove('is-loading');
-      this.formRow = undefined;
-    };
+  delete() {
+    this.formRow.deleteButton.classList.add('is-loading');
     const onError = () => {
-      target.classList.remove('is-loading');
+      this.formRow.deleteButton.classList.remove('is-loading');
       this.formRow.classList.add('has-background-danger');
     };
-    this.deleteRow(
+    this.model.delete(
       this.formRow.id,
       () => { // onSuccess
-        target.classList.remove('is-loading');
         this.formRow = undefined;
+        this.model.editDone();
       },
-      () => { // onError
-        target.classList.remove('is-loading');
-        this.formRow.classList.add('has-background-danger');
-      }
+      onError
     );
   }
 
   exitEditMode() {
-    if (this.formRow !== undefined) this.cancelThis();
+    if (this.formRow !== undefined) this.cancel();
     if (this.editMode) {
-      this.table.dom.classList.remove('is-hoverable');
+      this.table.classList.remove('is-hoverable');
       this.editMode = false;
-      this.editButton.textContent = "Edit";
+      this.editButton.textContent = 'Edit';
     }
   }
 
   enterEditMode() {
     if (!this.editMode) {
-      this.table.dom.classList.add('is-hoverable');
+      this.table.classList.add('is-hoverable');
       this.editMode = true;
-      this.editButton.textContent = "Done";
+      this.editButton.textContent = 'Done';
     }
   }
 
-  // recalculate all the Auto Columns while editing the form
-  updateForm(target) {
-    const column = this.table.getColumnByName(target.parentNode.getAttribute('data-col'));
-
-    // form validation
-    const type = column.type.toUpperCase();
-    if (type.startsWith('INT')) {
-      const match = target.value.match(this.pattern.integer);
-      if (match === null || match[0] !== target.value) { // incorrect input
-        target.classList.add('is-danger');
-        target.value = match[0];
-      } else target.classList.remove('is-danger'); // correct input
-    } else if (
-      type.startsWith('DOUBLE') ||
-      type.startsWith('REAL') ||
-      type.startsWith('EURO')
-    ) {
-      const match = target.value.match(this.pattern.float);
-      if (match === null || match[0] !== target.value) { // incorrect input
-        target.classList.add('is-danger');
-        target.value = match[0];
-      } else target.classList.remove('is-danger'); // correct input
-    }
-        
-    
-    // recalculate Auto Columns
-    this.table.model[column.name] = target.value;
-    this.table.columns.forEach( (col) => {
-      switch (col.class) {
-        case 2: // Auto Column
-          const val = this.table.model[col.name];
-          const td = this.formRow.querySelector('td[data-col="'+col.name+'"]');
-          if (val !== td.textContent) {
-            td.textContent = val;
-          }
-      }
-    });
-
-
-    // update suggestions
-    if (this.suggestion !== undefined) {
-      this.suggestion.table.innerHTML = '';
-      if (column.class === 3) {
-        if (this.suggestId(target.value)) {
-          this.formRow.saveButton.removeAttribute('disabled');
-          target.classList.remove('is-danger');
-        } else {
-          this.formRow.saveButton.setAttribute('disabled', true);
-          target.classList.add('is-danger');
-        }
-      } else if (column.class === 1 && type.startsWith('VARCHAR')) this.suggestText(target.value, column.name);
-    }
-
-    // enable or disable save-button depending on whether data has been altered
-    const inputIterator = this.formRow.querySelectorAll('input.required').values();
-    let requiredFieldsFilled = true;
-    console.log('required fields:',this.formRow.querySelectorAll('input.required'));
-    this.formRow.querySelectorAll('input.required').forEach( (input) => {
-      console.log('field: ',input);
-      if (input.value === "") requiredFieldsFilled = false;
-    });
-
-    if (requiredFieldsFilled) this.formRow.saveButton.removeAttribute('disabled');
-    else this.formRow.saveButton.setAttribute('disabled', true);
-
+  clear() {
+    this.model.clear();
   }
 
-  makeSuggestion(target, value) {
-    if (typeof value === 'undefined') value = target.value;
-    const col = this.table.getColumnByName(target.parentNode.getAttribute('data-col'));
-    this.suggestion = {
-      target: target,
-      box: document.createElement('div'),
-      table: document.createElement('table'),
-      hasMouse: false
-    }
-    this.suggestion.box.classList.add('box', 'suggestion', 'is-paddingless');
-    this.suggestion.table.classList.add('table','is-hoverable');
-    this.suggestion.box.appendChild(this.suggestion.table);
-    this.suggestion.box.style.position = 'absolute';
-    this.suggestion.table.addEventListener('mouseleave', (event) => {
-      this.suggestion.hasMouse = false;
-    });
-    
+}
 
-    // only do this for text-type data columns or foreign key columns
-    if (col.class === 3) {
-      this.suggestion.columns = this.tables[col.table].columns;
-      this.suggestion.model = this.tables[col.table].model;
-      if (!this.suggestId(value)) {
-        this.formRow.saveButton.setAttribute('disabled', true);
-        // danger warning for wrong input
-      } 
-    } else if (col.class === 1 && col.type.toUpperCase().startsWith('VARCHAR')) {
-      if (!this.suggestText(value, col.name)) {
-        this.suggestion = undefined;
-        return;
-      }
-    } else return;
-
-    target.insertAdjacentElement('afterend', this.suggestion.box);
+class TrekApi {
+  constructor(ajaxUrl) {
+    this.ajaxUrl = ajaxUrl;
   }
-
-  suggestText(search, colName) {
-    const filteredResults = new Set();
-    this.table.model.forAllDesc( (row) => {
-      if (
-        row[colName] !== '' &&
-        row[colName].indexOf(search) !== -1
-      ) {
-        filteredResults.add(row[colName]);
-      }
-    });
-    if (filteredResults.size === 0) {
-      filteredResults.add(search);
-    }
-
-    filteredResults.forEach( (result) => {
-      const tr = document.createElement('tr');
-      tr.setAttribute('data-suggestion', result);
-      const index = result.indexOf(search);
-      tr.innerHTML = `<td>${result.slice(0, index)}<b>${search}</b>${result.slice(index + search.length)}</td>`;
-      tr.addEventListener('click', (event) => {
-        console.log(event);
-        Trek.acceptSuggestion(event.currentTarget);
-      });
-      tr.addEventListener('mousemove', (event) => {
-        Trek.chooseSuggestion(event.currentTarget);
-      });
-      this.suggestion.table.appendChild(tr);
-    });
-    this.suggestion.current = this.suggestion.table.firstChild;
-    //if (this.suggestion.current === null) return false;
-    this.suggestion.current.classList.add('has-background-primary');
-    return true;
-  }
-
-  suggestId(value) {
-    this.suggestion.model.forAllAsc( (row, id) => {
-      const idStr = id.toString();
-      if (idStr.startsWith(value)) {
-        const tr = document.createElement('tr');
-        tr.setAttribute('data-suggestion', id);
-        this.suggestion.columns.forEach( (col) => {
-          switch (col.class) {
-            case 0: // Meta Column
-              if (col.name === 'id') tr.innerHTML += `<td><b>${value}</b>${idStr.slice(value.length)}</td>`;
-              break;
-            case 1: // Data Column
-              tr.innerHTML += `<td>${row[col.name]}</td>`;
-              break;
-          }
-        });
-        tr.addEventListener('click', (event) => {
-          Trek.acceptSuggestion(event.currentTarget);
-        });
-        tr.addEventListener('mousemove', (event) => {
-          Trek.chooseSuggestion(event.currentTarget);
-        });
-        this.suggestion.table.appendChild(tr);
-      }
-    });
-    this.suggestion.current = this.suggestion.table.firstChild;
-    if (this.suggestion.current === null) return false;
-    this.suggestion.current.classList.add('has-background-primary');
-    return true;
-  }
-
-  acceptSuggestion(target) {
-    this.suggestion.target.value = target.getAttribute('data-suggestion');
-    this.suggestion.box.parentNode.removeChild(this.suggestion.box);
-    this.updateForm(this.suggestion.target);
-    this.suggestion = undefined;
-  }
-
-  closeSuggestion() {
-    console.log('closeSuggestion', this.suggestion);
-    if (this.suggestion !== undefined && this.suggestion.hasMouse === false) {
-      this.suggestion.box.parentNode.removeChild(this.suggestion.box);
-      this.suggestion = undefined;
-    }
-  }
-
-  chooseSuggestion(target) {
-    this.suggestion.current.classList.remove('has-background-primary');
-    this.suggestion.current = target;
-    target.classList.add('has-background-primary');
-  }
-
 
   // general ajax settings and error handling
-  ajaxRequest(data, onSuccess, onError) {
+  xhrRequest(data, onSuccess, onError) {
     console.log('ajax request, url: ', this.ajaxUrl, ' data: ', data);
     $.ajax({
       url: this.ajaxUrl,
       method: 'POST',
       data: data,
       dataType: 'json',
+      async: false,
       success: (response) => {
         console.log('response: ', response);
         if (response.success) onSuccess(response);
         else {
-          this.error('Database error: '+response.errormsg);
+          console.log('Database error: '+response.errormsg);
           if (typeof onError === 'function') onError();
         }
       },
       error: (xhr, ajaxOptions, thrownError) => {
-        this.error('Ajax error: '+xhr.status+'\n'+thrownError);
+        console.log('Ajax error: '+xhr.status+'\n'+thrownError);
         if (typeof onError === 'function') onError();
       }
     });
   }
 
-  chooseTab(tabLink) {
+}
+
+
+class TrekDatabase {
+
+  constructor(settings) {
+    // find active tab to reduce DOM calls for tab switching
+    this.activeTab = document.querySelector('#trek-db-nav li.is-active');
+    // initialize api
+    this.api = new TrekApi(settings.ajaxUrl);
+    // iterate sheets and initialize models
+    this.sheets = settings.sheets
+    Object.entries(this.sheets).forEach( ([name, sheet]) => {
+      if (sheet.modelClass !== undefined) sheet.model = new sheet.modelClass(name, this.sheets, this.api);
+      else sheet.model = new TrekTableModel(name, this.sheets, this.api);
+    });
+    // select default sheet, generate HTML table
+    this.selectTab();
+  }
+
+  selectTab(tabLink) {
     if (typeof tabLink === 'object') {
       this.activeTab.classList.remove('is-active');
       this.activeTab = tabLink.parentNode;
-      this.activeTable = this.activeTab.getAttribute('data-table');
+      this.activeTab.classList.add('is-active');
+      if (this.view !== undefined) this.view.clear();
     }
-    this.activeTab.classList.add('is-active');
-    this.exitEditMode();
-
-    this.selectTable(
-      this.activeTable,
-      () => { // onSuccess
-        const model = this.getTableModel(this.activeTable);
-        this.tableView = new TrekTableView(this.activeTable, this, model);
-        this.tableView.head.innerHTML = '';
-        this.tableView.head.appendChild(this.tableView.getHeadRow());
-        this.tableView.body.innerHTML = '';
-        this.tableView.body.appendChild(this.tableView.newRow);
-        for (var index = model.getMaxIndex(); index > 0; index--) {
-          if (model[index] !== undefined) {
-            this.tableView.body.appendChild(this.tableView.getRow(index));
-          }
-        }
-        // push url including table
-        const url = new URL(document.location.href);
-        url.searchParams.set('table', this.activeTable);
-        window.history.pushState(response.data, '', url.pathname + url.search);
-      }
-    );
-  }
-
-  // select all visible columns of a table
-  selectTable(thisTable, onSuccess, onError) {
-    const tableNames = [thisTable, ...this.tables[tableName].referencedTables];
-    this.ajaxRequest(
-      {operation: 'SELECT', tableNames: tableNames},
-      (response) => { // onSuccess
-        tableNames.forEach( (tableName) => {
-          this.tables[tableName].model = new TrekTableModel(tableName, this, response.data[tableName]);
-        });
-        this.lastUpdate = response.time;
-        onSuccess();
-      },
-      onError
-    );
-  }
-
-  updateTable(thisTable, otherTables, data) {
-    otherTables.forEach( (tableName) => {
-      this.tables[tableName].model.update(data[tableName]);
-    });
-    this.tableView.update(data[thisTable]);
-  }
-
-
-  // pull updates since last refresh
-  refreshTable(thisTable, onSuccess, onError) {
-    const otherTables = this.tables[thisTable].referencedTables;
-    this.ajaxRequest(
-      {operation: 'SELECT', tableNames: [thisTable, ...otherTables], lastUpdate: this.lastUpdate},
-      (response) => {
-        this.updateTable(thisTable, otherTables, response.data);
-        this.lastUpdate = response.time;
-        onSuccess();
-      },
-      onError
-    );
-  }
-
-  // insert a new row
-  insertRow(rowData, onSuccess, onError) {
-    this.ajaxRequest(
-      {operation: 'INSERT', tableName: this.activeTable, lastUpdate: this.lastUpdate, data: [rowData]},
-      (response) => {
-        this.table.model.editDone();
-        this.updateTable(thisTable, this.tables[this.activeTable].referencedTables, response.data);
-        this.lastUpdate = response.time;
-        onSuccess();
-      },
-      onError
-    );
-  }
-
-  // alter an existing row
-  alterRow(rowData, rowId, onSuccess, onError) {
-    const data = {};
-    data[rowId] = rowData;
-    this.ajaxRequest(
-      {operation: 'ALTER', tableName: this.activeTable, lastUpdate: this.lastUpdate, data: data},
-      (response) => {
-        this.table.model.editDone();
-        this.updateTable(this.activeTable, this.tables[this.activeTable].referencedTables, response.data);
-        this.lastUpdate = response.time;
-        onSuccess();
-      },
-      onError
-    );
-  }
-
-  // delete a row
-  deleteRow(rowId, onSuccess, onError) {
-    this.ajaxRequest(
-      {operation: 'DELETE', tableName: this.activeTable, lastUpdate: this.lastUpdate, rows: [rowId]},
-      (response) => {
-        this.updateTable(this.activeTable, this.tables[this.activeTable].referencedTables, response.data);
-        this.lastUpdate = response.time;
-        onSuccess();
-      },
-      onError
-    );
-  }
-
-  error(message) {
-    console.log('Trek Error: ', message);
-  }
-
-  warning(message) {
-    console.log('Trek Warning: ', message);
+    const activeSheet = this.sheets[this.activeTab.getAttribute('data-sheet')];
+    if (activeSheet.viewClass !== undefined) this.view = new activeSheet.viewClass(activeSheet.model);
+    else this.view = new TrekTableView(activeSheet.model);
   }
 
 }

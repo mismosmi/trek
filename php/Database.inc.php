@@ -86,10 +86,11 @@ class Database extends Page
      *
      * @return string <table> tag
      */
-    public function getTable()
-    {
-        return "<table class=\"table\" id=\"trek-table\"><thead></thead><tbody></tbody></table>\n";
-    }
+    // DEPRECATED, table now generated from js
+    //public function getTable()
+    //{
+    //    return "<table class=\"table\" id=\"trek-table\"><thead></thead><tbody></tbody></table>\n";
+    //}
 
     /**
      * generate navigation for table-tabs
@@ -100,7 +101,7 @@ class Database extends Page
         foreach ($this->dbInfo['order'] as $name) {
             $data = $this->dbInfo['tables'][$name];
             $active = $name == $this->activeTable ? " class=\"is-active\"" : "";
-            $tabs .= "  <li$active data-table=\"$name\"><a onclick=\"Trek.selectTable(this)\">{$data['title']}</a></li>\n";
+            $tabs .= "  <li$active data-sheet=\"$name\"><a onclick=\"Trek.selectTab(this)\">{$data['title']}</a></li>\n";
         }
         return 
              "<div class=\"tabs\" id=\"trek-db-nav\">\n"
@@ -131,35 +132,36 @@ class Database extends Page
      * @param array $hierarchy  the hierarchy recursed tables
      * @return string the resulting javascript code
      */ 
-    private function getDataColumns($hierarchy, $baseTable)
-    {
-        $tableColumns = '';
-        foreach ($this->getColumns(end($hierarchy)) as $fcol) {
-            if ($fcol['class'] === 1) {
-                $symbol = $this->getSymbol($fcol['type']);
-                $prefix = implode("_", $hierarchy);
-                $tableColumns .= 
-                    "        {\n"
-                    ."           name: \"{$prefix}_{$fcol['name']}\",\n"
-                    ."           class: 4,\n" // Foreign Data Column
-                    ."           type: \"{$fcol['type']}\",\n"
-                    ."           symbol: \"$symbol\",\n"
-                    ."        },\n";
-            } elseif (
-                (
-                    $fcol['class'] === 3 //|| 
-                    //($fcol['class'] === 2 && array_key_exists('table', $fcol)) 
-                ) &&
-                !in_array($fcol['table'], $hierarchy) &&
-                $fcol['table'] !== $baseTable
-            ) {
-                $hierarchy[] = $fcol['table'];
-                $tableColumns .= $this->getDataColumns($hierarchy, $baseTable);
-                array_pop($hierarchy);
-            }
-        }
-        return $tableColumns;
-    }
+    // DEPRECATED in favour of doing it all in js
+    //private function getDataColumns($hierarchy, $baseTable)
+    //{
+    //    $tableColumns = '';
+    //    foreach ($this->getColumns(end($hierarchy)) as $fcol) {
+    //        if ($fcol['class'] === 1) {
+    //            $symbol = $this->getSymbol($fcol['type']);
+    //            $prefix = implode("_", $hierarchy);
+    //            $tableColumns .= 
+    //                "        {\n"
+    //                ."           name: \"{$prefix}_{$fcol['name']}\",\n"
+    //                ."           class: 4,\n" // Foreign Data Column
+    //                ."           type: \"{$fcol['type']}\",\n"
+    //                ."           symbol: \"$symbol\",\n"
+    //                ."        },\n";
+    //        } elseif (
+    //            (
+    //                $fcol['class'] === 3 //|| 
+    //                //($fcol['class'] === 2 && array_key_exists('table', $fcol)) 
+    //            ) &&
+    //            !in_array($fcol['table'], $hierarchy) &&
+    //            $fcol['table'] !== $baseTable
+    //        ) {
+    //            $hierarchy[] = $fcol['table'];
+    //            $tableColumns .= $this->getDataColumns($hierarchy, $baseTable);
+    //            array_pop($hierarchy);
+    //        }
+    //    }
+    //    return $tableColumns;
+    //}
 
 
 
@@ -172,7 +174,7 @@ class Database extends Page
         foreach ($this->dbInfo['order'] as $tableName) {
             //$table = $this->dbInfo['tables'][$tableName];
             $tableColumns .= 
-                 "      '$tableName': [\n";
+                 "      '$tableName': { columns: [\n";
             foreach ($this->getColumns($tableName) as $column) {
                 $js = "";
                 if ($column['class'] === 2) {
@@ -185,13 +187,6 @@ class Database extends Page
                         $js .= 
                             "{$column['js']}\n"
                             ."},\n";
-                    }
-                }
-                if ($column['class'] === 3) {
-                    $tableColumns .= $this->getDataColumns([$column['table']], $tableName);
-                } elseif ($column['class'] === 2 && array_key_exists('tables', $column)) {
-                    foreach ($column['table'] as $joinTableName) {
-                        $tableColumns .= $this->getDataColumns([$joinTableName], $tableName);
                     }
                 }
 
@@ -222,7 +217,7 @@ class Database extends Page
                     .$js
                     ."        },\n";
             }
-            $tableColumns .= "      ],\n";
+            $tableColumns .= "      ] },\n";
         }
 
         $ajaxUrl = HTML_ROOT."php/api.php?db=".$this->dbName;
@@ -232,8 +227,7 @@ class Database extends Page
             ."document.addEventListener('DOMContentLoaded', () => {\n"
             ."  Trek = new TrekDatabase({\n"
             ."    ajaxUrl: '$ajaxUrl',\n"
-            ."    tableName: '{$this->activeTable}',\n"
-            ."    tableColumns: {\n"
+            ."    sheets: {\n"
             .$tableColumns
             ."    }\n"
             ."  });\n"

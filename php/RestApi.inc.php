@@ -87,40 +87,31 @@ class RestApi extends SqlDb
         return $dataChecked;
     }
 
-    private function getJoinTables($hierarchy, $baseTable, $referenceType, $referenceTable)
-    {
-        $thisTable = end($hierarchy);
-        $joinTables = [[
-            'name' => $thisTable, 
-            'columns' => [], 
-            'referenceType' => $referenceType, 
-            'referenceTable' => $referenceTable,
-            'prefix' => implode("_", $hierarchy)
-        ]];
-        foreach ($this->getColumns($thisTable) as $fcol) {
-            if ($fcol['class'] === 1) {
-                $joinTables[0]['columns'][] = $fcol;
-            } elseif (
-                $fcol['class'] === 3 &&
-                !in_array($fcol['table'], $hierarchy) &&
-                $fcol['table'] !== $baseTable
-            ) {
-                $hierarchy[] = $fcol['table'];
-                $joinTables = array_merge($joinTables, $this->getJoinTables($hierarchy, $baseTable, 'left', $thisTable));
-                array_pop($hierarchy);
-            } //elseif (
-            //    $fcol['class'] === 2 && 
-            //    array_key_exists('table', $fcol) &&
-            //    !in_array($fcol['table'], $hierarchy) &&
-            //    $fcol['table'] !== $baseTable
-            //) {
-            //    $hierarchy[] = $fcol['table'];
-            //    $joinTables = array_merge($joinTables, $this->getJoinTables($hierarchy, $baseTable, 'right', $thisTable));
-            //    array_pop($hierarchy);
-            //}
-        }
-        return $joinTables;
-    }
+    // DEPRECATED in favour of doing it all in js
+    //private function getJoinTables($hierarchy, $baseTable, $referenceType, $referenceTable)
+    //{
+    //    $thisTable = end($hierarchy);
+    //    $joinTables = [[
+    //        'name' => $thisTable, 
+    //        'columns' => [], 
+    //        'referenceType' => $referenceType, 
+    //        'referenceTable' => $referenceTable,
+    //        'prefix' => implode("_", $hierarchy)
+    //    ]];
+    //    foreach ($this->getColumns($thisTable) as $fcol) {
+    //        if ($fcol['class'] === 1) {
+    //            $joinTables[0]['columns'][] = $fcol;
+    //        } elseif (
+    //            $fcol['class'] === 3 &&
+    //            !in_array($fcol['table'], $hierarchy) &&
+    //            $fcol['table'] !== $baseTable
+    //        ) {
+    //            $hierarchy[] = $fcol['table'];
+    //            $joinTables = array_merge($joinTables, $this->getJoinTables($hierarchy, $baseTable, 'left', $thisTable));
+    //            array_pop($hierarchy);
+    //        }        }
+    //    return $joinTables;
+    //}
                 
 
     
@@ -137,65 +128,54 @@ class RestApi extends SqlDb
         $ret = [];
         switch ($postData['operation']) {
         case 'INSERT':
-            foreach ($postData['data'] as $row) {
-                $ret = $this->dbInsert($postData['tableName'], $this->validateTableKeys($postData['tableName'], $row));
-                if (!$ret['success']) break;
-            }
+            $ret = $this->dbInsert(
+                $postData['tableName'], 
+                $this->validateTableKeys($postData['tableName'], $postData['data'])
+            );
             break;
         case 'DELETE':
-            foreach ($postData['rows'] as $id) {
-                $ret = $this->dbAlter($postData['tableName'], $id, ['deleted' => true]);
-                if (!$ret['success']) break;
-            }
+            $ret = $this->dbAlter(
+                $postData['tableName'], 
+                $postData['row'], 
+                ['deleted' => true]
+            );
             break;
         case 'ALTER':
-            foreach ($postData['data'] as $id => $row) {
-                $ret = $this->dbAlter($postData['tableName'], $id, $this->validateTableKeys($postData['tableName'], $row));
-                if (!$ret['success']) break;
-            }
+            $ret = $this->dbAlter(
+                $postData['tableName'], 
+                $postData['row'], 
+                $this->validateTableKeys($postData['tableName'], $postData['data'])
+            );
             break;
         }
         $time = date('Y-m-d G:i:s');
         if ($postData['operation'] === "SELECT" || $ret['success']) {
             $thisTable = ['name' => $postData['tableName'], 'columns' => []];
-            $joinTables = [];
+            $columns = [];
             foreach ($this->getColumns($postData['tableName']) as $col) {
                 switch ($col['class']) {
                 case 1: // Data Column
-                    $thisTable['columns'][] = $col;
+                    $columns[] = $col['name'];
                     break;
-                case 2: // Auto Column
-                    if (array_key_exists('tables', $col)) {
-                        foreach ($col['tables'] as $joinTableName) {
-                            $joinTables = array_merge($joinTables, $this->getJoinTables([$joinTableName], $postData['tableName'], "right", $thisTable['name']));
-                        }
-                    }
-                    break;
-                case 3: // Foreign Key
-                    $joinTables = array_merge($joinTables, $this->getJoinTables([$col['table']], $postData['tableName'], "left", $thisTable['name']));
-                    break;
+                case 3: // Foreign key
+                    $columns[] = "{$col['table']}_id";
                 }
             }
             $where = empty($postData['lastUpdate']) 
-                ? ["{$thisTable['name']}.deleted = 0"]
-                : ["{$thisTable['name']}.modifieddate >= {$postData['lastUpdate']}"];
+                ? ["deleted = 0"]
+                : ["modifieddate >= {$postData['lastUpdate']}"];
 
-            $ret = $this->dbSelectJoin($thisTable, $joinTables, $where);
-            $ret['where'] = $where;
+            $ret = $this->dbSelect($postData['tableName'], $columns, $where);
             if (!$ret['success']) {
                 if (empty($postData['lastUpdate'])) {
                     $createmsg = "";
-                    foreach ($joinTables as $table) {
-                        $create = $this->dbCreateTable($table['name'], $this->getColumns($table['name']));
-                        $createmsg .= ($create['success'] ? $create['info'] : $create['errormsg'])."\n";
-                    }
-                    $create = $this->dbCreateTable($thisTable['name'], $this->getColumns($thisTable['name']));
+                    $create = $this->dbCreateTable($postData['tableName'], $this->getColumns($postData['tableName']));
                     $createmsg .= ($create['success'] ? $create['info'] : $create['errormsg']);
-                    $ret = $this->dbSelectJoin($thisTable, $joinTables);
+                    $ret = $this->dbSelect($postData['tableName'], $columns);
                     if ($ret['success']) $ret['info'] = $createmsg;
                     else $ret['errormsg'] .= "\n".$createmsg;
                 } else $ret['errormsg'] = 
-                    "Something went wrong: trying to refresh table \"{$thisTable['name']}\"";
+                    "Something went wrong: trying to refresh table \"{$postData['tableName']}\"";
             }
         }
         $ret['time'] = $time;
