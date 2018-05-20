@@ -101,15 +101,14 @@
                     "title": "Budget Ausgegeben",
                     "class": 2,
                     "type": "EURO",
-                    "js": "'eine summe'",
-                    "tables": ["outgoing","retoure"]
+                    "js": "tv.outgoing.sum('ordersum') - tv.retoure.sum('ordersum')"
                 },
                 {
                     "name": "budgetleft",
                     "title": "Budget Übrig",
                     "class": 2,
                     "type": "EURO",
-                    "js": "'eine Differenz'"
+                    "js": "tv.budgetsum - tv.spending"
                 },
                 {
                     "name": "notes",
@@ -163,7 +162,7 @@
                     "type": "INTEGER"
                 },
                 {
-                    "name": "sum",
+                    "name": "ordersum",
                     "title": "Summe Bestellung",
                     "class": 2,
                     "type": "EURO",
