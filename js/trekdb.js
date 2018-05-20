@@ -13,7 +13,9 @@ class TrekSmartInput {
     this.input.placeholder = column.title;
     this.input.value = value;
     this.input.addEventListener('input', () => this.update());
+    this.input.addEventListener('click', () => this.input.select());
     this.input.setAttribute('tabindex', tabindex);
+    if (!column.type.startsWith('VARCHAR')) this.input.classList.add('has-text-right');
     target.appendChild(this.input);
 
     // suggestion system
@@ -777,9 +779,16 @@ class TrekTableView {
     this.model.at(id);
     this.forEachColumn( (col) => {
       const val = this.getDisplayFormat(col);
-      tr.innerHTML += `<td data-col="${col.name}">${val} ${val ? col.symbol : ''}</td>`;
+      const td = document.createElement('td');
+      td.setAttribute('data-col', col.name);
+      if (!col.type.startsWith('VARCHAR')) {
+        td.classList.add('has-text-right');
+        td.setAttribute('nowrap', true);
+      }
+      td.innerHTML += `${val} ${val ? col.symbol : ''}`;
+      tr.appendChild(td);
     });
-    tr.innerHTML += '<td></td>'; // empty td for control column
+    tr.appendChild(document.createElement('td')); // empty td for control column
     tr.addEventListener('click', event => this.edit(event) );
     return tr;
   }
@@ -816,7 +825,13 @@ class TrekTableView {
       const td = document.createElement('td');
       tr.appendChild(td);
       td.classList.add('control');
+      if (!col.type.startsWith('VARCHAR')) {
+        td.classList.add('has-text-right');
+        td.setAttribute('nowrap', true);
+      }
       td.setAttribute('data-col', col.name);
+      td.style.verticalAlign = 'middle';
+      let inputDiv;
       let input;
       let tabindex = 1;
       switch (col.class) {
@@ -868,12 +883,13 @@ class TrekTableView {
       }
       if (col.symbol) {
         const symbolspan = document.createElement('span');
-        symbolspan.innerHTML = col.symbol;
+        symbolspan.innerHTML = ' ' + col.symbol;
         td.appendChild(symbolspan);
       }
     });
 
     const controlTd = document.createElement('td');
+    controlTd.setAttribute('nowrap', true);
     tr.appendChild(controlTd);
     controlTd.classList.add('buttons','has-addons');
     tr.saveButton = document.createElement('span'); // save this in formRow for later
@@ -912,9 +928,11 @@ class TrekTableView {
       this.body.replaceChild(this.formRow, event.currentTarget);
       // find input in the right column if there is one and focus it
       let input = this.formRow.querySelector('td[data-col="'+targetColumn+'"] input');
-      if (input !== null) input.focus();
+      if (input !== null) {
+        input.focus();
+        input.select();
       // otherwise focus first input in this row
-      else {
+      } else {
         input = this.formRow.querySelector('input');
         if (input !== null) input.focus();
       }
