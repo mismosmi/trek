@@ -20,15 +20,21 @@ class TrekSmartInput {
     let makeSuggestion = false;
     let updateSuggestion;
 
+    // sync model
+    suggestionModel.sync();
+
     if (column.class === 3) { // Foreign Key
+      console.log('foreign key column', column.name);
       makeSuggestion = true;
       updateSuggestion = () => {
+        this.suggestion.show();
         const search = this.input.value;
         this.suggestion.table.innerHTML = '';
         suggestionModel.forAllAsc( (row, id) => {
           const idStr = id.toString();
           if (idStr.startsWith(search)) {
             const tr = document.createElement('tr');
+            tr.setAttribute('tabindex', '0');
             tr.setAttribute('data-suggestion', id);
             suggestionModel.columns.forEach( (col) => {
               switch (col.class) {
@@ -40,7 +46,6 @@ class TrekSmartInput {
                   break;
               }
             });
-            tr.addEventListener('click', () => this.suggestion.accept(id) );
             tr.addEventListener('mousemove', event => this.suggestion.select(event.currentTarget) );
             this.suggestion.table.appendChild(tr);
           }
@@ -53,6 +58,7 @@ class TrekSmartInput {
     } else if (column.class === 1 && column.type.startsWith('VARCHAR')) { // Data Column of type Text
       makeSuggestion = true;
       updateSuggestion = () => {
+        this.suggestion.show();
         const filteredResults = new Set();
         const search = this.input.value;
         suggestionModel.forAllAsc( (row, id) => {
@@ -66,10 +72,10 @@ class TrekSmartInput {
         this.suggestion.table.innerHTML = '';
         filteredResults.forEach( (result) => {
           const tr = document.createElement('tr');
+          tr.setAttribute('tabindex', '0');
           tr.setAttribute('data-suggestion', result);
           const index = result.indexOf(search);
           tr.innerHTML = `<td>${result.slice(0, index)}<b>${search}</b>${result.slice(index + search.length)}</td>`;
-          tr.addEventListener('click', () => this.suggestion.accept(event.currentTarget) );
           tr.addEventListener('mousemove', event => this.suggestion.select(event.currentTarget) );
           this.suggestion.table.appendChild(tr);
         });
@@ -104,11 +110,12 @@ class TrekSmartInput {
           this.suggestion.box.style.display = '';
           onShowSuggestion(this.suggestion);
         },
-        hide: () => {
-          if (!this.suggestion.hasMouse) {
-            this.suggestion.box.style.display = 'none';
-            onHideSuggestion();
+        hide: (event) => {
+          if (event !== undefined && event.relatedTarget.hasAttribute('data-suggestion')) {
+            this.suggestion.accept(event.relatedTarget);
           }
+          this.suggestion.box.style.display = 'none';
+          onHideSuggestion();
         },
         hasMouse: false
       }
@@ -117,8 +124,8 @@ class TrekSmartInput {
       this.suggestion.box.appendChild(this.suggestion.table);
       this.suggestion.box.style.position = 'absolute';
       this.suggestion.table.addEventListener('mouseleave', () => this.suggestion.hasMouse = false );
-      this.input.addEventListener('focusin', () => this.suggestion.show() );
-      this.input.addEventListener('focusout', () => this.suggestion.hide() );
+      this.input.addEventListener('focus', () => this.suggestion.show() );
+      this.input.addEventListener('blur', event => this.suggestion.hide(event) );
       this.suggestion.update();
       this.suggestion.hide();
       this.input.insertAdjacentElement('afterend', this.suggestion.box);
@@ -231,7 +238,6 @@ class TrekTableModel {
         case 2: // Auto Column
           Object.defineProperty(this.data, col.name, {
             get: () => {
-              //console.log('get ',this.currentId,col.name);
               return this.data[this.currentId][col.name];
             }
           });
@@ -343,6 +349,7 @@ class TrekTableModel {
         this.onRowChanged(row.id);
       }
     });
+    this.currentId = 'defaultRow';
   }
 
   repaint(data = {}) {
@@ -354,6 +361,7 @@ class TrekTableModel {
       this.run(row, id);
       this.onRowChanged(id);
     });
+    this.currentId = 'defaultRow';
     this.onRepaintDone();
   }
     
@@ -564,8 +572,9 @@ class TrekTableModel {
 
 class TrekTableView {
 
-  constructor(model) {
+  constructor(model, sheets) {
     console.log( 'tv constructor');
+    this.sheets = sheets;
     // create table and append to content-container
     const container = document.getElementById('trek-container');
     container.innerHTML = '';
@@ -683,6 +692,7 @@ class TrekTableView {
     // add Keyboard shortcuts
     document.addEventListener('keydown', (event) => {
       if (this.formRow === undefined) { // no active form
+        console.log('no active form', event.key);
         switch (event.key) {
           case 'Enter':
             this.model.edit('new');
@@ -707,6 +717,7 @@ class TrekTableView {
         }
       } else { // active form
         if (this.formRow.activeSuggestion === undefined) { // no active suggestion
+          console.log('active form, no active suggestion', event.key);
           switch (event.key) {
             case 'Enter':
               this.save();
@@ -723,6 +734,7 @@ class TrekTableView {
               return;
           }
         } else { // active suggestion
+          console.log('active form, active suggestion', event.key);
           const s = this.formRow.activeSuggestion;
           switch (event.key) {
             case 'Escape':
@@ -848,7 +860,7 @@ class TrekTableView {
               this.model.data[col.name] = value;
               tr.validate();
             },
-            this.model[col.table].at(0), // suggestionModel
+            this.sheets[col.table].model, // suggestionModel
             (suggestion) => { // onShowSuggestion
               tr.activeSuggestion = suggestion;
             },
@@ -1053,7 +1065,7 @@ class TrekDatabase {
     }
     const activeSheet = this.sheets[this.activeTab.getAttribute('data-sheet')];
     if (activeSheet.viewClass !== undefined) this.view = new activeSheet.viewClass(activeSheet.model);
-    else this.view = new TrekTableView(activeSheet.model);
+    else this.view = new TrekTableView(activeSheet.model, this.sheets);
   }
 
 }
