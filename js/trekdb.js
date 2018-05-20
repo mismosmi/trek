@@ -2,7 +2,7 @@
 
 class TrekSmartInput {
   
-  constructor(column, value, target, onUpdate, suggestionModel) {
+  constructor(column, value, target, onUpdate, suggestionModel, onShowSuggestion, onHideSuggestion) {
     this.column = column;
     this.onUpdate = onUpdate;
     console.log('creating input ',column,', onUpdate:',onUpdate);
@@ -15,8 +15,6 @@ class TrekSmartInput {
     this.input.value = value;
     this.input.addEventListener('input', () => this.update());
     target.appendChild(this.input);
-    this.hasActiveSuggestion = false;
-
 
     // suggestion system
     let makeSuggestion = false;
@@ -71,7 +69,7 @@ class TrekSmartInput {
           tr.setAttribute('data-suggestion', result);
           const index = result.indexOf(search);
           tr.innerHTML = `<td>${result.slice(0, index)}<b>${search}</b>${result.slice(index + search.length)}</td>`;
-          tr.addEventListener('click', () => this.suggestion.accept(result) );
+          tr.addEventListener('click', () => this.suggestion.accept(event.currentTarget) );
           tr.addEventListener('mousemove', event => this.suggestion.select(event.currentTarget) );
           this.suggestion.table.appendChild(tr);
         });
@@ -88,8 +86,8 @@ class TrekSmartInput {
         box: document.createElement('div'),
         table: document.createElement('table'),
         update: updateSuggestion,
-        accept: (value) => {
-          console.log('accept suggestion');
+        accept: (target) => {
+          const value = target.getAttribute('data-suggestion');
           this.suggestion.hasMouse = false;
           this.input.value = value;
           this.suggestion.hide();
@@ -104,12 +102,12 @@ class TrekSmartInput {
         },
         show: () => {
           this.suggestion.box.style.display = '';
-          this.hasActiveSuggestion = true;
+          onShowSuggestion(this.suggestion);
         },
         hide: () => {
           if (!this.suggestion.hasMouse) {
             this.suggestion.box.style.display = 'none';
-            this.hasActiveSuggestion = false;
+            onHideSuggestion();
           }
         },
         hasMouse: false
@@ -650,6 +648,68 @@ class TrekTableView {
     // asynchronously pull content per ajax request, append table-rows per callback
     setTimeout(() => this.model.sync(true));
 
+    // add Keyboard shortcuts
+    document.addEventListener('keydown', (event) => {
+      if (this.formRow === undefined) { // no active form
+        switch (event.key) {
+          case 'Enter':
+            this.model.edit('new');
+            this.formRow = this.getFormRow('new');
+            this.body.replaceChild(this.formRow, this.newRow);
+            const input = this.formRow.querySelector('input');
+            if (input !== null) input.focus();
+            return;
+        }
+        if (this.editMode) { // edit mode, no active form
+          switch (event.key) {
+            case 'Escape':
+              this.exitEditMode();
+              return;
+          }
+        } else { // no edit mode, no active form
+          switch (event.key) {
+            case 'e':
+              this.enterEditMode();
+              return;
+          }
+        }
+      } else { // active form
+        if (this.formRow.activeSuggestion === undefined) { // no active suggestion
+          switch (event.key) {
+            case 'Enter':
+              this.save();
+              return;
+            case 'Escape':
+              this.cancel();
+              return;
+            case 'ArrowDown':
+              const activeElement = document.activeElement;
+              if (activeElement.nodeName === 'INPUT') {
+                const input = this.formRow.inputs.find( input => input.input === activeElement );
+                if (input.suggestion !== undefined) input.suggestion.show();
+              }
+              return;
+          }
+        } else { // active suggestion
+          const s = this.formRow.activeSuggestion;
+          switch (event.key) {
+            case 'Escape':
+              s.hide();
+              return;
+            case 'ArrowDown':
+              s.select(s.current.nextSibling);
+              return;
+            case 'ArrowUp':
+              s.select(s.current.previousSibling);
+              return;
+            case 'Enter':
+              s.accept(s.current);
+              return;
+          }
+        }
+      }
+    });
+
   }
 
     
@@ -735,7 +795,13 @@ class TrekTableView {
               this.model[col.name] = value;
               tr.validate()
             }, 
-            this.model // suggestionModel
+            this.model, // suggestionModel
+            (suggestion) => { // onShowSuggestion
+              tr.activeSuggestion = suggestion; 
+            },
+            () => { // onHideSuggestion
+              tr.activeSuggestion = undefined;
+            }
           );
           tr.inputs.push(input);
           break;
@@ -747,8 +813,14 @@ class TrekTableView {
             (value) => { // onUpdate
               this.model[col.name] = value;
               tr.validate();
-            },            
-            this.model[col.table].at(0) // suggestionModel
+            },
+            this.model[col.table].at(0), // suggestionModel
+            (suggestion) => { // onShowSuggestion
+              tr.activeSuggestion = suggestion;
+            },
+            () => { // onHideSuggestion
+              tr.activeSuggestion = undefined;
+            }
           );
           tr.inputs.push(input);
           break;
@@ -934,6 +1006,7 @@ class TrekDatabase {
     });
     // select default sheet, generate HTML table
     this.selectTab();
+
   }
 
   selectTab(tabLink) {
