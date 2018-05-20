@@ -2,10 +2,9 @@
 
 class TrekSmartInput {
   
-  constructor(column, value, target, onUpdate, suggestionModel, onShowSuggestion, onHideSuggestion) {
+  constructor(column, value, target, tabindex, onUpdate, suggestionModel, onShowSuggestion, onHideSuggestion) {
     this.column = column;
     this.onUpdate = onUpdate;
-    console.log('creating input ',column,', onUpdate:',onUpdate);
 
     this.input = document.createElement('input');
     this.input.classList.add('input');
@@ -14,6 +13,7 @@ class TrekSmartInput {
     this.input.placeholder = column.title;
     this.input.value = value;
     this.input.addEventListener('input', () => this.update());
+    this.input.setAttribute('tabindex', tabindex);
     target.appendChild(this.input);
 
     // suggestion system
@@ -24,7 +24,6 @@ class TrekSmartInput {
     suggestionModel.sync();
 
     if (column.class === 3) { // Foreign Key
-      console.log('foreign key column', column.name);
       makeSuggestion = true;
       updateSuggestion = () => {
         this.suggestion.show();
@@ -140,7 +139,6 @@ class TrekSmartInput {
 
   // type validation
   validate() {
-    console.log('validate',this.column.type,this.input.value);
     if (this.column.type.startsWith('INT')) {
       const match = this.input.value.match(/[0-9]*/);
       if (match === null || match[0] !== this.input.value) { // incorrect input
@@ -172,7 +170,6 @@ class TrekSmartInput {
     );
 
     // callback
-    console.log('call onUpdate(',this.input.value,')');
     this.onUpdate(this.input.value);
   }
 }
@@ -225,7 +222,6 @@ class TrekTableModel {
       if (sheetName !== this.name && sheet.columns.find( col => col.name === keyColumn ) !== undefined) {
         Object.defineProperty(this.data, sheetName, {
           get: () => {
-            console.log('get sheet',sheetName, 'currentId',this.currentId);
             return sheets[sheetName].model.filter( row => row[keyColumn] == this.currentId );
           }
         });
@@ -248,11 +244,9 @@ class TrekTableModel {
         case 1: // Data Column
           Object.defineProperty(this.data, col.name, {
             get: () => {
-              console.log('get ',this.currentId,col.name);
               return this.data[this.currentId][col.name];
             },
             set: (value) => {
-              console.log('set', col.name, value);
               if (col.type.startsWith('INT')) return this.data.buffer[col.name] = parseInt(value);
               
               if (col.type.startsWith('BOOL')) return this.data.buffer[col.name] = (value == true || value == 'true');
@@ -270,11 +264,9 @@ class TrekTableModel {
         case 3: // Foreign Key
           Object.defineProperty(this.data, col.name, {
             get: () => {
-              //console.log('get ',this.currentId,col.name);
               return this.data[this.currentId][col.name];
             },
             set: (value) => {
-              console.log('set', col.name, value);
               // foreign keys are always ints
               this.data.buffer[col.name] = parseInt(value);
               this.run(this.data.buffer, 'buffer');
@@ -473,7 +465,6 @@ class TrekTableModel {
 
   // api requests
   sync(repaint = false, onSuccess, onError) {
-    console.log('sync');
     const currentClientTime = Date.now();
     const onSuccessFn = (response) => {
       this.lastUpdate = {
@@ -577,7 +568,6 @@ class TrekTableModel {
 class TrekTableView {
 
   constructor(model, sheets) {
-    console.log( 'tv constructor');
     this.sheets = sheets;
     // create table and append to content-container
     const container = document.getElementById('trek-container');
@@ -603,7 +593,6 @@ class TrekTableView {
     });
 
     this.model = model;
-    console.log( 'tv model set');
 
     // generate and save newRow 
     this.newRow = document.createElement('tr');
@@ -631,7 +620,6 @@ class TrekTableView {
     this.body.innerHTML = '';
     this.body.appendChild(this.newRow);
 
-    console.log( 'tv headrow done newrow done');
       
     // push url
     const url = new URL(document.location.href);
@@ -642,7 +630,6 @@ class TrekTableView {
       lastUpdate: this.model.lastUpdate ? this.model.lastUpdate : 0,
     }, '', url.pathname + url.search);
 
-    console.log( 'tv history done');
 
     // set callback actions
     // update autocolumns in formrow
@@ -758,7 +745,6 @@ class TrekTableView {
       }
     });
 
-    console.log('TableView constructor done');
 
   }
 
@@ -786,7 +772,6 @@ class TrekTableView {
 
   // generate row formatted as tr
   getRow(id) {
-    console.log('getRow(',id,')');
     const tr = document.createElement('tr');
     tr.id = id;
     this.model.at(id);
@@ -814,7 +799,6 @@ class TrekTableView {
     tr.inputs = [];
 
     tr.validate = () => {
-      console.log('validate');
       tr.isValid = true;
       tr.inputs.forEach( (input) => {
         if (!input.isValid) tr.isValid = false;
@@ -834,14 +818,15 @@ class TrekTableView {
       td.classList.add('control');
       td.setAttribute('data-col', col.name);
       let input;
+      let tabindex = 1;
       switch (col.class) {
         case 1: // Data Column
           input = new TrekSmartInput(
             col,  // column
             this.getDisplayFormat(col), // value
             td, // target
+            tabindex = tabindex,
             (value) => { // onUpdate
-              console.log('updating', col.name, 'with', value);
               this.model.data[col.name] = value;
               tr.validate()
             }, 
@@ -854,12 +839,14 @@ class TrekTableView {
             }
           );
           tr.inputs.push(input);
+          tabindex++;
           break;
         case 3: // Foreign Key
           input = new TrekSmartInput(
             col, // column
             this.getDisplayFormat(col), // value
             td, // target 
+            tabindex = tabindex,
             (value) => { // onUpdate
               this.model.data[col.name] = value;
               tr.validate();
@@ -873,6 +860,7 @@ class TrekTableView {
             }
           );
           tr.inputs.push(input);
+          tabindex++;
           break;
 
         default:
