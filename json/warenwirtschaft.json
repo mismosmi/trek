@@ -42,7 +42,7 @@
                     "title": "Preis/Teil",
                     "class": 2,
                     "type": "EURO",
-                    "js": "tv.unitprice * tv.unit"
+                    "js": "tv.unitprice / tv.unit"
                 },
                 {
                     "name": "notes",
@@ -101,7 +101,7 @@
                     "title": "Budget Ausgegeben",
                     "class": 2,
                     "type": "EURO",
-                    "js": "let sum = 0; for (var i=0; i<tv.outgoing_quantity.length; i++) sum += tv.outgoing_quantity[i] * tv.outgoing_product_unitprice[i]; for (var i=0; i<tv.retoure_quantity.length; i++) sum -= tv.retoure_quantity[i] * tv.retoure_product_unitprice[i]; return sum;",
+                    "js": "'eine summe'",
                     "tables": ["outgoing","retoure"]
                 },
                 {
@@ -109,7 +109,7 @@
                     "title": "Budget Übrig",
                     "class": 2,
                     "type": "EURO",
-                    "js": "tv.budgetsum - tv.spending"
+                    "js": "'eine Differenz'"
                 },
                 {
                     "name": "notes",
@@ -141,20 +141,20 @@
                     "name": "productcategory",
                     "title": "Produktkategorie",
                     "class": 2,
-                    "js": "tv.product_category"
+                    "js": "tv.product.category"
                 },
                 {
                     "name": "productname",
                     "title": "Produktname",
                     "class": 2,
-                    "js": "tv.product_name"
+                    "js": "tv.product.name"
                 },
                 {
                     "name": "unitprice",
                     "title": "Preis/Einheit",
                     "class": 2,
                     "type": "EURO",
-                    "js": "tv.product_unitprice"
+                    "js": "tv.product.unitprice"
                 },
                 {
                     "name": "quantity",
@@ -167,7 +167,7 @@
                     "title": "Summe Bestellung",
                     "class": 2,
                     "type": "EURO",
-                    "js": "tv.quantity * tv.product_unitprice"
+                    "js": "tv.quantity * tv.product.unitprice"
                 }
             ]
         },

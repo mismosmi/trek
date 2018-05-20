@@ -57,7 +57,7 @@ class TrekSmartInput {
         const search = this.input.value;
         suggestionModel.forAllAsc( (row, id) => {
           if (
-            row[column.name] !== '' &&
+            row[column.name] &&
             row[column.name].indexOf(search) !== -1
           ) filteredResults.add(row[column.name]);
         });
@@ -177,11 +177,43 @@ class TrekTableModel {
     this[''] = ''; // return empty string if requesting row from other table where id is not specified yet
 
 
+    
+    // initialize data object
+    this.data = { 
+      defaultRow: {},
+
+      forEach: (doThis, maxIndex = this.currentId) => {
+        for (var index = 1; index < maxIndex; index++) {
+          if (this.data[index] !== undefined && this.filterFn(this.data[index])) {
+            this.currentId = index;
+            doThis(this.data, index);
+          }
+        }
+      },
+
+      sum: (column) => {
+
+        let sum = 0;
+        this.data.forEach( row => sum += row[column] );
+        return sum;
+      },
+
+      avg: (column) => {
+        let length = 0;
+        let sum = 0;
+        this.data.forEach( (row) => {
+          sum += row[column];
+          length++;
+        });
+        return sum / length;
+      }
+    };
+
     // access to other tables
     Object.entries(sheets).forEach( ([sheetName, sheet]) => {
       const keyColumn = this.name + '_id';
       if (sheetName !== this.name && sheet.columns.find( col => col.name === keyColumn ) !== undefined) {
-        Object.defineProperty(this, sheetName, {
+        Object.defineProperty(this.data, sheetName, {
           get: () => {
             console.log('get sheet',sheetName, 'currentId',this.currentId);
             return sheets[sheetName].model.filter( row => row[keyColumn] == this.currentId );
@@ -190,62 +222,59 @@ class TrekTableModel {
       }
     });
 
-    
     // attach accessors
-    // generate defaultRow
-    this.defaultRow = {};
     this.columns.forEach( (col) => {
-      this.defaultRow[col.name] = col.default === undefined ? '' : col.default;
+      this.data.defaultRow[col.name] = col.default === undefined ? '' : col.default;
 
       switch (col.class) {
         case 0: // Meta Column
         case 2: // Auto Column
-          Object.defineProperty(this, col.name, {
+          Object.defineProperty(this.data, col.name, {
             get: () => {
               //console.log('get ',this.currentId,col.name);
-              return this[this.currentId][col.name];
+              return this.data[this.currentId][col.name];
             }
           });
           break;
         case 1: // Data Column
-          Object.defineProperty(this, col.name, {
+          Object.defineProperty(this.data, col.name, {
             get: () => {
-              //console.log('get ',this.currentId,col.name);
-              return this[this.currentId][col.name];
+              console.log('get ',this.currentId,col.name);
+              return this.data[this.currentId][col.name];
             },
             set: (value) => {
               console.log('set', col.name, value);
-              if (col.type.startsWith('INT')) return this.buffer[col.name] = parseInt(value);
+              if (col.type.startsWith('INT')) return this.data.buffer[col.name] = parseInt(value);
               
-              if (col.type.startsWith('BOOL')) return this.buffer[col.name] = (value == true || value == 'true');
+              if (col.type.startsWith('BOOL')) return this.data.buffer[col.name] = (value == true || value == 'true');
 
-              if (col.type.startsWith('DOUBLE') || col.type.startsWith('REAL')) return this.buffer[col.name] = parseFloat(value);
+              if (col.type.startsWith('DOUBLE') || col.type.startsWith('REAL')) return this.data.buffer[col.name] = parseFloat(value);
 
-              if (col.type.startsWith('EURO')) return this.buffer[col.name] = Math.round(parseFloat(value) * (10**4));
+              if (col.type.startsWith('EURO')) return this.data.buffer[col.name] = Math.round(parseFloat(value) * (10**4));
 
-              this.buffer[col.name] = value;
-              this.run(this.buffer, 'buffer');
-              this.onBufferChanged(this.buffer);
+              this.data.buffer[col.name] = value;
+              this.run(this.data.buffer, 'buffer');
+              this.onBufferChanged(this.data.buffer);
             }
           });
           break;
         case 3: // Foreign Key
-          Object.defineProperty(this, col.name, {
+          Object.defineProperty(this.data, col.name, {
             get: () => {
               //console.log('get ',this.currentId,col.name);
-              return this[this.currentId][col.name];
+              return this.data[this.currentId][col.name];
             },
             set: (value) => {
               console.log('set', col.name, value);
               // foreign keys are always ints
-              this.buffer[col.name] = parseInt(value);
-              this.run(this.buffer, 'buffer');
-              this.onBufferChanged(this.buffer);
+              this.data.buffer[col.name] = parseInt(value);
+              this.run(this.data.buffer, 'buffer');
+              this.onBufferChanged(this.data.buffer);
             }
           });
-          Object.defineProperty(this, col.table, {
+          Object.defineProperty(this.data, col.table, {
             get: () => {
-              return sheets[col.table].model.at(this[this.currentId][col.name]);
+              return sheets[col.table].model.at(this.data[this.currentId][col.name]);
             }
           });
           break;
@@ -259,26 +288,28 @@ class TrekTableModel {
     if (id) this.currentId = id;
     else this.currentId = 'defaultRow';
     this.filterFn = row => true;
-    return this;
+    return this.data;
   }
 
   filterFn() { return true; }
   filter(filterFn) {
     this.sync();
     this.filterFn = filterFn;
-    return this;
+    return this.data;
   }
 
   // callback functions
   onBufferChanged(buffer) {}
   onRowDeleted(id) {}
   onRowChanged(id) {}
+  onRepaintDone() {}
 
   clear() {
     this.filterFn = row => true;
     this.onBufferChanged = buffer => {};
     this.onRowDeleted = id => {};
     this.onRowChanged = id => {};
+    this.onRepaintDone = () => {};
     if (this.syncTimeout !== undefined) {
       clearTimeout(this.syncTimeout);
       this.syncTimerout = undefined;
@@ -286,12 +317,12 @@ class TrekTableModel {
   }
 
   run(row, id) {
-    if (typeof row !== 'object') row = this[row];
+    if (typeof row !== 'object') row = this.data[row];
     this.currentId = (id === undefined) ? row.id : id;
     this.columns.forEach( (col) => {
       switch (col.class) {
         case 2: // Auto Column
-          row[col.name] = col.run(this);
+          row[col.name] = col.run(this.data);
           break;
       }
     });
@@ -301,14 +332,14 @@ class TrekTableModel {
   update(data) {
     const arrData = Object.values(data);
     arrData.forEach( (row) => {
-      if (row.deleted) this[row.id] = undefined;
-      else this[row.id] = this.parseRow(row);
+      if (row.deleted) this.data[row.id] = undefined;
+      else this.data[row.id] = this.parseRow(row);
     });
     arrData.forEach( (row) => {
       if (row.deleted) {
         this.onRowDeleted(row.id);
       } else {
-        this.run(row);
+        this.run(row.id);
         this.onRowChanged(row.id);
       }
     });
@@ -316,14 +347,14 @@ class TrekTableModel {
 
   repaint(data = {}) {
     Object.values(data).forEach( (row) => {
-      if (row.deleted) this[row.id] = undefined;
-      else this[row.id] = this.parseRow(row);
+      if (row.deleted) this.data[row.id] = undefined;
+      else this.data[row.id] = this.parseRow(row);
     });
-    this.filterFn = () => true;
     this.forAllDesc( (row, id) => {
       this.run(row, id);
       this.onRowChanged(id);
     });
+    this.onRepaintDone();
   }
     
 
@@ -356,11 +387,15 @@ class TrekTableModel {
   }
 
   // find largest numerical index
-  getMaxIndex() {
+  getMaxIndex(useFilter = true) {
     let max = 0;
-    Object.keys(this).forEach( (key) => {
+    Object.keys(this.data).forEach( (key) => {
       const index = parseInt(key);
-      if (!isNaN(index) && this.filterFn(this[index]) && max < index) max = index;
+      if (
+        !isNaN(index) && 
+        (useFilter === false || this.filterFn(this.data[index])) && 
+        max < index
+      ) max = index;
     });
     return max;
   }
@@ -368,38 +403,28 @@ class TrekTableModel {
   // Loop over all Rows where Order does not matter
   // might be faster then iterating in ascending or descending order especially for large datasets
   forAll(doThis) {
-    Object.keys(this).forEach( (key) => {
+    Object.entries(this.data).forEach( ([key, row]) => {
       const index = parseInt(key);
-      if (!isNaN(index) && this.filterFn(this[index])) {
-        doThis(this[index], index);
+      if (!isNaN(index)) {
+        doThis(row, index);
       }
     });
   }
 
   // Loop over all rows in ascending order
-  forAllAsc(doThis, minIndex = 1, maxIndex = this.getMaxIndex()) {
+  forAllAsc(doThis, minIndex = 1, maxIndex = this.getMaxIndex(false)) {
     for (var index = minIndex; index <= maxIndex; index++) {
-      if (this[index] !== undefined && this.filterFn(this[index])) {
-        doThis(this[index], index);
+      if (this.data[index] !== undefined) {
+        doThis(this.data[index], index);
       }
     }
   }
 
   // Loop over all rows in descending order
-  forAllDesc(doThis, minIndex = 1, maxIndex = this.getMaxIndex()) {
+  forAllDesc(doThis, minIndex = 1, maxIndex = this.getMaxIndex(false)) {
     for (var index = maxIndex; index >= minIndex; index--) {
-      if (this[index] !== undefined && this.filterFn(this[index])) {
-        doThis(this[index], index);
-      }
-    }
-  }
-
-  // Loop over rows up to currentId
-  forEach(doThis, maxIndex = this.currentId) {
-    for (var index = 1; index < maxIndex; index++) {
-      if (this[index] !== undefined && this.filterFn(this[index])) {
-        this.currentId = index;
-        doThis(this, index);
+      if (this.data[index] !== undefined) {
+        doThis(this.data[index], index);
       }
     }
   }
@@ -407,31 +432,15 @@ class TrekTableModel {
   // copy a row to buffer in order to edit non-destructively
   edit(id) {
     if (id === 'new') {
-      this.buffer = Object.assign({}, this.defaultRow);
-      this.run(this.buffer, 'buffer');
+      this.data.buffer = Object.assign({}, this.data.defaultRow);
+      this.run(this.data.buffer, 'buffer');
     }
-    else this.buffer = Object.assign({}, this[id]);
+    else this.data.buffer = Object.assign({}, this.data[id]);
     this.currentId = 'buffer';
   }
 
   editDone() {
-    this.buffer = undefined;
-  }
-
-  sum(column) {
-    let sum = 0;
-    this.forAll( row => sum += row[column] );
-    return sum;
-  }
-
-  avg(column) {
-    let length = 0;
-    let sum = 0;
-    this.forAll( (row) => {
-      sum += row[column];
-      length++;
-    });
-    return sum / length;
+    this.data.buffer = undefined;
   }
 
   // return only data and foreign key fields for ajax requests
@@ -440,10 +449,10 @@ class TrekTableModel {
     this.columns.forEach( (col) => {
       switch (col.class) {
         case 1:
-          if (this.buffer[col.name] === 0 || this.buffer[col.name]) data[col.name] = this.buffer[col.name];
+          if (this.data.buffer[col.name] === 0 || this.data.buffer[col.name]) data[col.name] = this.data.buffer[col.name];
           break;
         case 3:
-          if (this.buffer[col.name]) data[col.name] = this.buffer[col.name];
+          if (this.data.buffer[col.name]) data[col.name] = this.data.buffer[col.name];
           break;
       }
     });
@@ -452,6 +461,7 @@ class TrekTableModel {
 
   // api requests
   sync(repaint = false, onSuccess, onError) {
+    console.log('sync');
     const currentClientTime = Date.now();
     const onSuccessFn = (response) => {
       this.lastUpdate = {
@@ -555,6 +565,7 @@ class TrekTableModel {
 class TrekTableView {
 
   constructor(model) {
+    console.log( 'tv constructor');
     // create table and append to content-container
     const container = document.getElementById('trek-container');
     container.innerHTML = '';
@@ -568,7 +579,7 @@ class TrekTableView {
 
     this.editMode = false;
     this.editButton = document.getElementById('trek-edit-button');
-    this.editButton.disabled = false;
+    this.editButton.removeAttribute('disabled');
     this.editButton.addEventListener('click', () => {
       // toggle edit mode
       if (this.editMode) {
@@ -579,11 +590,24 @@ class TrekTableView {
     });
 
     this.model = model;
+    console.log( 'tv model set');
 
     // generate and save newRow 
     this.newRow = document.createElement('tr');
     this.newRow.id = 'new';
-    this.newRow.innerHTML = `<td colspan="${this.model.columns.length + 1}"><div class="columns is-centered"><div class="column is-6"><span class="button is-fullwidth is-primary">New Entry</span></div></div></td>`;
+    const newTd = document.createElement('td');
+    newTd.colSpan = this.model.columns.length + 1;
+    this.newRow.appendChild(newTd);
+    const newColumnsLayout = document.createElement('div');
+    newColumnsLayout.classList.add('columns', 'is-centered');
+    newTd.appendChild(newColumnsLayout);
+    const newColumn = document.createElement('div');
+    newColumn.classList.add('column', 'is-6');
+    newColumnsLayout.appendChild(newColumn);
+    const newButton = document.createElement('span');
+    newButton.classList.add('button', 'is-fullwidth', 'is-primary', 'is-loading');
+    newButton.textContent = 'New Entry';
+    newColumn.appendChild(newButton);
     this.newRow.addEventListener('click', (event) => this.edit(event) );
 
 
@@ -593,15 +617,19 @@ class TrekTableView {
     this.head.appendChild(this.getHeadRow());
     this.body.innerHTML = '';
     this.body.appendChild(this.newRow);
+
+    console.log( 'tv headrow done newrow done');
       
-    // push url including table
+    // push url
     const url = new URL(document.location.href);
     url.searchParams.set('table', this.model.name);
     window.history.pushState({
       viewClass: this.constructor.name,
       modelName: this.model.name,
-      lastUpdate: this.model.lastUpdate 
+      lastUpdate: this.model.lastUpdate ? this.model.lastUpdate : 0,
     }, '', url.pathname + url.search);
+
+    console.log( 'tv history done');
 
     // set callback actions
     // update autocolumns in formrow
@@ -609,7 +637,7 @@ class TrekTableView {
       this.forEachColumn( (col) => {
         switch (col.class) {
           case 2: // Auto Column
-            const val = buffer[col.name];
+            const val = this.getDisplayFormat(buffer[col.name]);
             const td = this.formRow.querySelector('td[data-col="'+col.name+'"]');
             if (val !== td.textContent) td.textContent = val;
         }
@@ -640,6 +668,10 @@ class TrekTableView {
       }
       this.body.replaceChild(this.getRow(id), tr);
       return;
+    };
+
+    this.model.onRepaintDone = () => {
+      newButton.classList.remove('is-loading');
     };
 
     // automatically refresh this model every 5 min
@@ -710,12 +742,14 @@ class TrekTableView {
       }
     });
 
+    console.log('TableView constructor done');
+
   }
 
     
   // if column type is a currency convert to float for correct display
-  getDisplayFormat(col) {
-    const val = this.model[col.name]
+  getDisplayFormat(col, row) {
+    const val = (row === undefined) ? this.model.data[col.name] : row[col.name];
     switch (col.type) {
       case 'EURO':
         if (val === 0 || val) return (val * (10**-4)).toFixed(2);
@@ -792,7 +826,7 @@ class TrekTableView {
             td, // target
             (value) => { // onUpdate
               console.log('updating', col.name, 'with', value);
-              this.model[col.name] = value;
+              this.model.data[col.name] = value;
               tr.validate()
             }, 
             this.model, // suggestionModel
@@ -811,7 +845,7 @@ class TrekTableView {
             this.getDisplayFormat(col), // value
             td, // target 
             (value) => { // onUpdate
-              this.model[col.name] = value;
+              this.model.data[col.name] = value;
               tr.validate();
             },
             this.model[col.table].at(0), // suggestionModel
@@ -954,6 +988,7 @@ class TrekTableView {
   }
 
   clear() {
+    this.editButton.setAttribute('disabled', true);
     this.model.clear();
   }
 

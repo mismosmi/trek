@@ -19,7 +19,7 @@ echo $db->getHead();
 <section class="section">
  <div class="container">
   <div class="buttons has-addons is-pulled-right">
-   <span id="trek-edit-button" class="button is-primary">Edit</span>
+   <span id="trek-edit-button" class="button is-primary" disabled>Edit</span>
   </div>
 <?php echo $db->getDbNav(); ?>
  </div>
