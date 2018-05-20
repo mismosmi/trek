@@ -111,7 +111,11 @@ class TrekSmartInput {
           onShowSuggestion(this.suggestion);
         },
         hide: (event) => {
-          if (event !== undefined && event.relatedTarget.hasAttribute('data-suggestion')) {
+          if (
+            event !== undefined && 
+            event.relatedTarget !== null && 
+            event.relatedTarget.hasAttribute('data-suggestion')
+          ) {
             this.suggestion.accept(event.relatedTarget);
           }
           this.suggestion.box.style.display = 'none';
@@ -190,7 +194,7 @@ class TrekTableModel {
       defaultRow: {},
 
       forEach: (doThis, maxIndex = this.currentId) => {
-        for (var index = 1; index < maxIndex; index++) {
+        for (var index = 1; index <= maxIndex; index++) {
           if (this.data[index] !== undefined && this.filterFn(this.data[index])) {
             this.currentId = index;
             doThis(this.data, index);
@@ -199,7 +203,6 @@ class TrekTableModel {
       },
 
       sum: (column) => {
-
         let sum = 0;
         this.data.forEach( row => sum += row[column] );
         return sum;
@@ -301,6 +304,7 @@ class TrekTableModel {
   filter(filterFn) {
     this.sync();
     this.filterFn = filterFn;
+    this.currentId = this.getMaxIndex();
     return this.data;
   }
 
@@ -897,7 +901,7 @@ class TrekTableView {
     tr.cancelButton.textContent = 'Cancel';
     if (id !== 'new') {
       tr.deleteButton = document.createElement('span');
-      controlTd.appendChild(deleteButton);
+      controlTd.appendChild(tr.deleteButton);
       tr.deleteButton.classList.add('button', 'is-danger');
       tr.deleteButton.addEventListener('click', () => this.delete() );
       tr.deleteButton.textContent = 'Delete';

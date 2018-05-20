@@ -328,7 +328,7 @@ class SqlDb {
             $data = [];
             while ($row = $stmt->fetch()) {
                 if ($row['deleted']) {
-                    $data[$row['id']] = ['deleted' => true];
+                    $data[$row['id']] = ['id' => $row['id'], 'deleted' => true];
                     continue;
                 }
                 foreach ($row as $key => $val) {
