@@ -306,6 +306,7 @@ class TrekTableModel {
   onBufferChanged(buffer) {}
   onRowDeleted(id) {}
   onRowChanged(id) {}
+  onRowAdded(id) {}
   onRepaintDone() {}
 
   clear() {
@@ -337,32 +338,37 @@ class TrekTableModel {
     const arrData = Object.values(data);
     arrData.forEach( (row) => {
       if (row.deleted) this.data[row.id] = undefined;
-      else this.data[row.id] = this.parseRow(row);
-    });
-    arrData.forEach( (row) => {
-      if (row.deleted) {
-        this.onRowDeleted(row.id);
-      } else {
-        this.run(row.id);
+      else if (this.data[row.id] !== undefined) {
+        this.data[row.id] = this.run(this.parseRow(row));
         this.onRowChanged(row.id);
+      } else {
+        this.data[row.id] = this.run(this.parseRow(row));
+        const sortedEntries = this.getSortedEntries(); 
+        const next = sortedEntries.findIndex( ([id, ]) => id === row.id ) + 1;
+        if (sortedEntries[next] === undefined) this.onRowAdded(row.id);
+        else this.onRowAdded(row.id, next);
       }
     });
     this.currentId = 'defaultRow';
   }
 
   repaint(data = {}) {
+    this.onRepaint();
     Object.values(data).forEach( (row) => {
       if (row.deleted) this.data[row.id] = undefined;
       else this.data[row.id] = this.parseRow(row);
     });
-    this.forAllDesc( (row, id) => {
-      this.run(row, id);
-      this.onRowChanged(id);
-    });
+    console.log('repaint');
+    this.getSortedEntries().forEach( ([id, row]) => {
+        this.run(row, id);
+        this.onRowAdded(id);
+      });
     this.currentId = 'defaultRow';
-    this.onRepaintDone();
   }
-    
+
+  getSortedEntries() {
+    return Object.entries(this.data).filter( ([id, row]) => !isNaN(parseInt(id)) ).sort(this.getSort())
+  }
 
   parseRow(row) {
     this.columns.forEach( (col) => {
@@ -426,13 +432,35 @@ class TrekTableModel {
     }
   }
 
-  // Loop over all rows in descending order
-  forAllDesc(doThis, minIndex = 1, maxIndex = this.getMaxIndex(false)) {
-    for (var index = maxIndex; index >= minIndex; index--) {
-      if (this.data[index] !== undefined) {
-        doThis(this.data[index], index);
-      }
+  getSort() {
+    const reverse = this.order !== undefined && this.order.ascending ? 1 : -1;
+    if (this.order === undefined || this.order.column.name === 'id') {
+      return ([idA, rowA], [idB, rowB]) => {
+        return reverse * (idA - idB);
+      };
+    } else if (this.order.column.type.startsWith('VARCHAR')) {
+      return ([idA, rowA], [idB, rowB]) => {
+        const valA = rowA[this.order.column.name].toUpperCase();
+        const valB = rowB[this.order.column.name].toUpperCase();
+        if (valA < valB) return reverse * -1;
+        if (valA > valB) return reverse * 1;
+        return 0;
+      };
+    } else {
+      return ([idA, rowA], [idB, rowB]) => {
+        if (!rowA[this.order.column.name] && !rowB[this.order.column.name]) return 0;
+        if (!rowA[this.order.column.name]) return reverse * -1;
+        if (!rowB[this.order.column.name]) return reverse * 1;
+        return reverse * rowA[this.order.column.name] - rowB[this.order.column.name] 
+      };
     }
+  }
+
+  // Loop over all rows in specified order
+  forAllSorted(doThis) {
+    Object.entries(this.data).filter( ([id, row]) => !isNaN(parseInt(id)) )
+      .sort(this.getSort())
+      .forEach( ([id, row]) => doThis(row, id) );
   }
 
   // copy a row to buffer in order to edit non-destructively
@@ -467,6 +495,7 @@ class TrekTableModel {
 
   // api requests
   sync(repaint = false, onSuccess, onError) {
+    console.log('sync', repaint);
     const currentClientTime = Date.now();
     const onSuccessFn = (response) => {
       this.lastUpdate = {
@@ -614,13 +643,15 @@ class TrekTableView {
     newColumn.appendChild(newButton);
     this.newRow.addEventListener('click', (event) => this.edit(event) );
 
+    this.model.order = {
+      ascending: false,
+      column: {name: 'id'}
+    }
 
     this.editMode = false;
     // generate initial table content
     this.head.innerHTML = '';
     this.head.appendChild(this.getHeadRow());
-    this.body.innerHTML = '';
-    this.body.appendChild(this.newRow);
 
       
     // push url
@@ -651,6 +682,12 @@ class TrekTableView {
       this.body.removeChild(document.getElementById(id));
     };
 
+    // append row at end of tbody
+    this.model.onRowAdded = (id, next) => {
+      if (next !== undefined) this.body.insertBefore(this.getRow(id), document.getElementById(next));
+      else this.body.appendChild(this.getRow(id));
+    }
+
     // update row or append in right place if new
     this.model.onRowChanged = (id) => {
       const tr = document.getElementById(id);
@@ -672,8 +709,10 @@ class TrekTableView {
       return;
     };
 
-    this.model.onRepaintDone = () => {
+    this.model.onRepaint = () => {
       newButton.classList.remove('is-loading');
+      this.body.innerHTML = '';
+      this.body.appendChild(this.newRow);
     };
 
     // automatically refresh this model every 5 min
@@ -685,7 +724,6 @@ class TrekTableView {
     // add Keyboard shortcuts
     document.addEventListener('keydown', (event) => {
       if (this.formRow === undefined) { // no active form
-        console.log('no active form', event.key);
         switch (event.key) {
           case 'Enter':
             this.model.edit('new');
@@ -710,7 +748,6 @@ class TrekTableView {
         }
       } else { // active form
         if (this.formRow.activeSuggestion === undefined) { // no active suggestion
-          console.log('active form, no active suggestion', event.key);
           switch (event.key) {
             case 'Enter':
               this.save();
@@ -727,7 +764,6 @@ class TrekTableView {
               return;
           }
         } else { // active suggestion
-          console.log('active form, active suggestion', event.key);
           const s = this.formRow.activeSuggestion;
           switch (event.key) {
             case 'Escape':
@@ -794,10 +830,55 @@ class TrekTableView {
   }
 
   // generate table head
-  getHeadRow() {
+  getHeadRow(sorting = true) {
     const tr = document.createElement('tr');
-    this.forEachColumn( col => tr.innerHTML += `<th>${col.title}</th>` );
-    tr.innerHTML += '<th></th>'; // empty header for controls-column
+    this.forEachColumn( (col) => {
+      const th = document.createElement('th');
+      if (sorting) {
+        const a = document.createElement('a');
+        a.classList.add('is-unselectable');
+        let icon = '';
+        if (this.model.order.column.name === col.name) {
+          if (this.model.order.ascending) {
+            icon = 'fa-caret-square-up';
+          } else {
+            icon = 'fa-caret-square-down';
+          }
+          // switch order
+          a.addEventListener('click', () => { 
+            this.model.order.ascending = !this.model.order.ascending;
+            this.head.innerHTML = '';
+            this.head.appendChild(this.getHeadRow());
+            setTimeout( () => {
+              this.body.innerHTML = '';
+              this.model.sync(true);
+            });
+          });
+        } else {
+          icon = 'fa-caret-down';
+          // sort by this column
+          a.addEventListener('click', () => {
+            this.model.order = {
+              column: col,
+              ascending: false
+            };
+            this.head.innerHTML = '';
+            this.head.appendChild(this.getHeadRow());
+            setTimeout( () => {
+              this.body.innerHTML = '';
+              this.model.sync(true);
+            });
+          });
+        }
+        a.innerHTML = `${col.title} <span class="icon"><i class="fas ${icon}"></i></span>`;
+        th.appendChild(a);
+      } else {
+        th.classList.add('is-unselectable');
+        th.innerHTML = `${col.title}`;
+      }
+      tr.appendChild(th);
+    });
+    tr.appendChild(document.createElement('th')); // empty header for controls-column
     return tr;
   }
 
@@ -916,6 +997,14 @@ class TrekTableView {
   }
 
   edit(event) {
+    if (event.currentTarget.id === 'new') {
+      this.model.order = {
+        column: {name: 'id'},
+        ascending: false
+      };
+      setTimeout(() => this.model.sync(true));
+    }
+
     if (this.editMode || event.currentTarget.id === 'new') {
       // first close any other active form
       this.cancel();
@@ -998,6 +1087,8 @@ class TrekTableView {
       this.table.classList.remove('is-hoverable');
       this.editMode = false;
       this.editButton.textContent = 'Edit';
+      this.head.innerHTML = '';
+      this.head.appendChild(this.getHeadRow(true));
     }
   }
 
@@ -1006,6 +1097,13 @@ class TrekTableView {
       this.table.classList.add('is-hoverable');
       this.editMode = true;
       this.editButton.textContent = 'Done';
+      this.head.innerHTML = '';
+      this.head.appendChild(this.getHeadRow(false));
+      this.model.order = {
+        ascending: false,
+        column: {name: 'id'}
+      }
+      setTimeout(this.model.sync(true));
     }
   }
 
