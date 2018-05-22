@@ -65,6 +65,7 @@ class Database extends Page
 
         $this->addCss('css/fontawesome.min.css');
         $this->addCss('css/fa-solid.min.css');
+        $this->addCss('css/trekdb.css');
         $this->addJs('js/jquery-3.2.1.min.js');
         $this->addJs('js/trekdb.js');
         

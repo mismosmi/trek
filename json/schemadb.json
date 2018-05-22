@@ -21,29 +21,36 @@
                     "class": 0
                 },
                 {
-                    "name": "datacolumn",
-                    "title": "Data Column",
+                    "name": "stringcolumn",
+                    "title": "String Column",
                     "class": 1,
-                    "type": "VARCHAR(30)",
+                    "type": "string",
                     "required": true
                 },
                 {
                     "name": "integercolumn",
                     "title": "Integer Column",
                     "class": 1,
-                    "type": "INTEGER"
+                    "type": "int"
+                },
+                {
+                    "name": "floatcolumn",
+                    "title": "Float Column",
+                    "class": 1,
+                    "type": "float"
                 },
                 {
                     "name": "currencycolumn",
                     "title": "Currency Column",
                     "class": 1,
-                    "type": "EURO"
+                    "type": "euro"
                 },
                 {
                     "name": "autocolumn",
                     "title": "Auto Column",
                     "class": 2,
-                    "js": "\"Hello, world.\""
+                    "js": "\"Hello, world.\"",
+                    "type": "string"
                 },
                 {
                     "table": "foreigntable",
@@ -54,14 +61,15 @@
                     "name": "foreigncolumn",
                     "title": "Foreign Column",
                     "class": 2,
-                    "js": "tv.foreigntable.foreigncolumn"
+                    "js": "tv.foreigntable.foreigncolumn",
+                    "type": "string"
                 },
                 {
                     "name": "foreignsum",
                     "title": "Foreign Sum",
                     "class": 2,
                     "js": "tv.numerictable.sum('integercolumn')",
-                    "tables": ["numerictable"]
+                    "type": "int"
                 }
             ]
         },
@@ -77,7 +85,7 @@
                     "name": "foreigncolumn",
                     "title": "Foreign Column",
                     "class": 1,
-                    "type": "VARCHAR(30)"
+                    "type": "string"
                 }
             ]
         },
@@ -88,7 +96,7 @@
                     "name": "testcolumn",
                     "title": "Test Column",
                     "class": 1,
-                    "type": "VARCHAR(30)"
+                    "type": "string"
                 }
             ]
         },
@@ -107,13 +115,13 @@
                 {
                     "name": "integercolumn",
                     "title": "Integer Column",
-                    "type": "INTEGER",
+                    "type": "int",
                     "class": 1
                 },
                 {
                     "name": "floatcolumn",
                     "title": "Floating Point Column",
-                    "type": "DOUBLE",
+                    "type": "float",
                     "class": 1
                 }
             ]

@@ -12,7 +12,7 @@ echo $db->getHead();
 <body>
 <?php echo $db->getNavbar(); ?>
 <section class="section">
- <div class="container">
+ <div>
   <h1 class="title"><?php echo $db->title; ?></h1>
  </div>
 </section>
@@ -23,7 +23,9 @@ echo $db->getHead();
   </div>
 <?php echo $db->getDbNav(); ?>
  </div>
- <div class="container" id="trek-container">
+ <div class="container relative">
+  <div id="trek-container">
+  </div>
  </div>
 </section>
 <?php echo $db->getScript(); ?>

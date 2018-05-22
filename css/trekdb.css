@@ -1,0 +1,23 @@
+.scrollable {
+    overflow: auto;
+}
+.relative {
+    position: relative;
+}
+
+#trek-container {
+    overflow-x: auto;
+    overflow-y: visible;
+}
+
+#trek-table {
+    table-layout: fixed;
+}
+
+#trek-container th {
+    width: 100px;
+}
+
+#trek-container tbody {
+    min-height: 1px;
+}

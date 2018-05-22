@@ -101,13 +101,21 @@ class SqlDb {
                     ."deleted BOOLEAN DEFAULT 0";
             }
             foreach ($columns as $col) {
-                $colType = "";
-                $colName = "";
                 switch ($col['class']) {
                 case 1: // Data Column
                     switch ($col['type']) {
-                    case "EURO":
+                    case "euro":
+                    case "int":
                         $col['type'] = "BIGINT";
+                        break;
+                    case "string":
+                        $col['type'] = "TEXT CHARACTER SET utf8";
+                        break;
+                    case "float":
+                        $col['type'] = "DOUBLE";
+                        break;
+                    case "bool":
+                        $col['type'] = "BOOLEAN";
                         break;
                     }
                     $query .= ", {$col['name']} {$col['type']}"; 

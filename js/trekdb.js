@@ -94,13 +94,13 @@ class TrekTableModel {
               return this.buffer ? this.buffer[col.name] : '';
             },
             set: (value) => {
-              if (col.type.startsWith('INT')) return this.buffer[col.name] = parseInt(value);
+              if (col.type === 'int') return this.buffer[col.name] = parseInt(value);
               
-              if (col.type.startsWith('BOOL')) return this.buffer[col.name] = (value == true || value == 'true');
+              if (col.type === 'bool') return this.buffer[col.name] = (value == true || value == 'true');
 
-              if (col.type.startsWith('DOUBLE') || col.type.startsWith('REAL')) return this.buffer[col.name] = parseFloat(value);
+              if (col.type === 'float') return this.buffer[col.name] = parseFloat(value);
 
-              if (col.type.startsWith('EURO')) return this.buffer[col.name] = Math.round(parseFloat(value) * (10**4));
+              if (col.type === 'euro') return this.buffer[col.name] = Math.round(parseFloat(value) * (10**4));
 
               this.buffer[col.name] = value;
               this.run(this.buffer, '');
@@ -157,26 +157,15 @@ class TrekTableModel {
     this.columns.forEach( (col) => {
       if (col.name === 'id' || col.class === 3) return row[col.name] = parseInt(row[col.name]);
 
-      if (
-        col.type.startsWith('INT') ||
-        col.type.startsWith('EURO')
-      ) {
-        if (Array.isArray(row[col.name])) return row[col.name] = row[col.name].map( val => parseInt(val) );
+      if (col.type === 'int' || col.type === 'euro') {
         return row[col.name] = parseInt(row[col.name]);
       }
       
-      if (
-        col.type.startsWith('BOOL')
-      ) {
-      if (Array.isArray(row[col.name])) return row[col.name] = row[col.name].map( val => val == true );
+      if (col.type === 'bool') {
         return row[col.name] = row[col.name] == true;
       }
 
-      if (
-        col.type.startsWith('DOUBLE') ||
-        col.type.startsWith('REAL')
-      ) {
-      if (Array.isArray(row[col.name])) return row[col.name] = row[col.name].map( val => parseFloat(val) );
+      if (col.type === 'float') {
         return row[col.name] = parseFloat(row[col.name]);
       }
 
@@ -313,7 +302,7 @@ class TrekTableModel {
       if (
         this.order.column.type !== undefined && 
         (
-          this.order.column.type.startsWith('VARCHAR') ||
+          this.order.column.type === 'string' ||
           this.order.column.name === 'createdate' ||
           this.order.column.name === 'modifieddate'
         )
@@ -504,7 +493,11 @@ class TrekSmartInput {
     this.input.addEventListener('input', () => this.update());
     this.input.addEventListener('click', () => this.input.select());
     target.appendChild(this.input);
-    if (!column.type.startsWith('VARCHAR')) this.input.classList.add('has-text-right');
+    if (
+      column.type === 'int' || 
+      column.type === 'euro' || 
+      column.type === 'float'
+    ) this.input.classList.add('has-text-right');
 
     // suggestion system
     let makeSuggestion = false;
@@ -544,7 +537,7 @@ class TrekSmartInput {
         this.suggestion.current.classList.add('has-background-primary');
         return true;
       };
-    } else if (column.class === 1 && column.type.startsWith('VARCHAR')) { // Data Column of type Text
+    } else if (column.class === 1 && column.type === 'string') { // Data Column of type Text
       makeSuggestion = true;
       updateSuggestion = () => {
         this.suggestion.show();
@@ -632,16 +625,15 @@ class TrekSmartInput {
 
   // type validation
   validate() {
-    if (this.column.type.startsWith('INT')) {
+    if (this.column.type === 'int') {
       const match = this.input.value.match(/[0-9]*/);
       if (match === null || match[0] !== this.input.value) { // incorrect input
         this.input.classList.add('is-danger');
         this.input.value = match[0];
       } else this.input.classList.remove('is-danger'); // correct input
     } else if (
-      this.column.type.startsWith('DOUBLE') ||
-      this.column.type.startsWith('REAL') ||
-      this.column.type.startsWith('EURO')
+      this.column.type === 'double' ||
+      this.column.type === 'euro'
     ) {
       const match = this.input.value.match(/[0-9]*\.?[0-9]*/);
       if (match === null || match[0] !== this.input.value) { // incorrect input
@@ -676,7 +668,8 @@ class TrekTableView {
     const container = document.getElementById('trek-container');
     container.innerHTML = '';
     this.table = document.createElement('table');
-    this.table.classList.add('table');
+    this.table.id = "#trek-table";
+    this.table.classList.add('table', 'is-fullwidth');
     container.appendChild(this.table);
     this.head = document.createElement('thead');
     this.table.appendChild(this.head);
@@ -701,7 +694,8 @@ class TrekTableView {
     this.newRow = document.createElement('tr');
     this.newRow.id = '';
     const newTd = document.createElement('td');
-    newTd.colSpan = this.model.columns.length + 1;
+    newTd.colSpan = this.model.columns.reduce( (accumulator, col) => accumulator + this.getColSpan(col), 0 ) + this.getColSpan('control');
+
     this.newRow.appendChild(newTd);
     const newColumnsLayout = document.createElement('div');
     newColumnsLayout.classList.add('columns', 'is-centered');
@@ -721,6 +715,7 @@ class TrekTableView {
     }
 
     this.editMode = false;
+    this.filterMode = false;
     // generate initial table content
     this.head.innerHTML = '';
     this.head.appendChild(this.getHeadRow());
@@ -818,6 +813,12 @@ class TrekTableView {
               this.exitEditMode();
               return;
           }
+        } else if (this.filterMode) { // filter mode
+          switch (event.key) {
+            case 'Escape':
+              console.log('we should leave filterMode now');
+              return;
+          }
         } else { // no edit mode, no active form
           switch (event.key) {
             case 'e':
@@ -870,7 +871,7 @@ class TrekTableView {
   getDisplayFormat(col, row) {
     const val = (row === undefined) ? this.model.data[col.name] : row[col.name];
     switch (col.type) {
-      case 'EURO':
+      case 'euro':
         if (val === 0 || val) return (val * (10**-4)).toFixed(2);
         else return '0.00';
       default:
@@ -895,18 +896,32 @@ class TrekTableView {
     this.forEachColumn( (col) => {
       const val = this.getDisplayFormat(col);
       const td = document.createElement('td');
+      td.colSpan = this.getColSpan(col);
       td.setAttribute('data-col', col.name);
-      if (!col.type.startsWith('VARCHAR')) {
+      if (col.type === 'int' || col.type === 'float' || col.type === 'euro') {
         td.classList.add('has-text-right');
         td.setAttribute('nowrap', true);
       }
       td.innerHTML += `${val} ${val ? col.symbol : ''}`;
       tr.appendChild(td);
     });
+    const controlTd = document.createElement('th');
+    controlTd.colSpan = this.getColSpan('control');
+    tr.appendChild(controlTd); // empty header for controls-column
     tr.appendChild(document.createElement('td')); // empty td for control column
     tr.addEventListener('click', event => this.edit(event) );
     return tr;
   }
+
+  getColSpan(col) {
+    if (col === 'control') return 3;
+    if (col.type === 'string') return 3;
+    if (col.name === 'createdate' || col.name === 'modifieddate') return 2;
+    if (col.type === 'euro') return 2;
+    return 1;
+  }
+
+
 
   // generate table head
   getHeadRow(sorting = true) {
@@ -915,6 +930,7 @@ class TrekTableView {
     if (this.editMode) {
       this.forEachColumn( (col) => {
         const th = document.createElement('th');
+        th.colSpan = this.getColSpan(col);
         th.classList.add('is-unselectable');
         th.innerHTML = col.title;
         if (this.model.order.column === col) th.innerHTML += getIcon(true, this.model.order.ascending);
@@ -924,6 +940,7 @@ class TrekTableView {
       // column headers and sorting functions
       this.forEachColumn( (col) => {
         const th = document.createElement('th');
+        th.colSpan = this.getColSpan(col);
         const a = document.createElement('a');
         a.classList.add('is-unselectable');
         a.innerHTML = col.title;
@@ -972,12 +989,14 @@ class TrekTableView {
         input.addEventListener('focus', () => {
           p.classList.remove('has-icons-left');
           filterIcon.style.display = 'none';
+          this.filterMode = true;
         });
         input.addEventListener('blur', () => {
           if (input.value === '') {
             p.classList.add('has-icons-left');
             filterIcon.style.display = '';
           }
+          this.filterMode = false;
         });
         input.addEventListener('input', () => {
           if (input.value === '') {
@@ -1006,7 +1025,9 @@ class TrekTableView {
         tr.appendChild(th);
       });
     }
-    tr.appendChild(document.createElement('th')); // empty header for controls-column
+    const controlTh = document.createElement('th');
+    controlTh.colSpan = this.getColSpan('control');
+    tr.appendChild(controlTh); // empty header for controls-column
     return tr;
   }
 
@@ -1032,9 +1053,10 @@ class TrekTableView {
     // loop columns
     this.forEachColumn( (col) => {
       const td = document.createElement('td');
+      td.colSpan = this.getColSpan(col);
       tr.appendChild(td);
       td.classList.add('control');
-      if (!col.type.startsWith('VARCHAR')) {
+      if (col.type === 'int' || col.type === 'float' || col.type === 'euro') {
         td.classList.add('has-text-right');
         td.setAttribute('nowrap', true);
       }
@@ -1042,7 +1064,6 @@ class TrekTableView {
       td.style.verticalAlign = 'middle';
       let inputDiv;
       let input;
-      let tabindex = 1;
       switch (col.class) {
         case 1: // Data Column
           input = new TrekSmartInput(
@@ -1051,7 +1072,7 @@ class TrekTableView {
             td, // target
             this.model // suggestionModel
           );
-          input.input.setAttribute('tabindex', tabindex);
+          input.input.setAttribute('tabindex', 1);
           input.onUpdate = (value) => {
             this.model.data[col.name] = value;
             tr.validate()
@@ -1063,7 +1084,6 @@ class TrekTableView {
             tr.activeSuggestion = undefined;
           };
           tr.inputs.push(input);
-          tabindex++;
           break;
         case 3: // Foreign Key
           input = new TrekSmartInput(
@@ -1072,7 +1092,7 @@ class TrekTableView {
             td, // target
             this.sheets[col.table].model // suggestionModel
           );
-          input.input.setAttribute('tabindex', tabindex);
+          input.input.setAttribute('tabindex', 1);
           input.onUpdate = (value) => {
             this.model.data[col.name] = value;
             tr.validate()
@@ -1084,7 +1104,6 @@ class TrekTableView {
             tr.activeSuggestion = undefined;
           };
           tr.inputs.push(input);
-          tabindex++;
           break;
         default:
           td.innerHTML += this.getDisplayFormat(col);
@@ -1098,26 +1117,30 @@ class TrekTableView {
 
     const controlTd = document.createElement('td');
     controlTd.setAttribute('nowrap', true);
-    tr.appendChild(controlTd);
     controlTd.classList.add('buttons','has-addons');
     tr.saveButton = document.createElement('span'); // save this in formRow for later
-    controlTd.appendChild(tr.saveButton);
     tr.saveButton.classList.add('button', 'is-link');
     tr.saveButton.addEventListener('click', () => this.save() );
     tr.saveButton.setAttribute('disabled', true);
     tr.saveButton.textContent = 'Save';
+    tr.saveButton.tabindex = 1;
+    controlTd.appendChild(tr.saveButton);
     tr.cancelButton = document.createElement('span');
-    controlTd.appendChild(tr.cancelButton);
     tr.cancelButton.classList.add('button');
     tr.cancelButton.addEventListener('click', () => this.cancel() );
     tr.cancelButton.textContent = 'Cancel';
+    tr.cancelButton.tabindex = 1;
+    controlTd.appendChild(tr.cancelButton);
     if (id) {
       tr.deleteButton = document.createElement('span');
-      controlTd.appendChild(tr.deleteButton);
       tr.deleteButton.classList.add('button', 'is-danger');
       tr.deleteButton.addEventListener('click', () => this.delete() );
       tr.deleteButton.textContent = 'Delete';
+      tr.deleteButton.tabindex = 1;
+      controlTd.appendChild(tr.deleteButton);
     }
+    controlTd.colSpan = this.getColSpan('control');
+    tr.appendChild(controlTd);
 
 
     return tr;
