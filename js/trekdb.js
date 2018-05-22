@@ -1,5 +1,437 @@
 "use strict";
 
+
+
+
+class TrekTableModel {
+
+  constructor(name, sheets, api) {
+    this.name = name;
+    this.api = api;
+    this.columns = sheets[name].columns;
+    this[''] = ''; // return empty string if requesting row from other table where id is not specified yet
+
+
+    
+    // initialize defaultRow
+    this.defaultRow = {},
+    // initialize data object
+    this.data = { 
+
+      forEach: (doThis, maxIndex = this.currentId) => {
+        for (var index = 1; index <= maxIndex; index++) {
+          if (this.data[index] !== undefined && this.filterFn(this.data[index])) {
+            this.currentId = index;
+            doThis(this.data, index);
+          }
+        }
+      },
+
+      sum: (column) => {
+        let sum = 0;
+        this.data.forEach( row => sum += row[column] );
+        return sum;
+      },
+
+      avg: (column) => {
+        let length = 0;
+        let sum = 0;
+        this.data.forEach( (row) => {
+          sum += row[column];
+          length++;
+        });
+        return sum / length;
+      }
+    };
+
+    // access to other tables
+    Object.entries(sheets).forEach( ([sheetName, sheet]) => {
+      const keyColumn = this.name + '_id';
+      if (sheetName !== this.name && sheet.columns.find( col => col.name === keyColumn ) !== undefined) {
+        Object.defineProperty(this.data, sheetName, {
+          get: () => {
+            if (this.currentId) return sheets[sheetName].model.filter( row => row[keyColumn] == this.currentId );
+            return sheets[sheetName].model.filter( row => false );
+          }
+        });
+      }
+    });
+
+    // attach accessors
+    this.columns.forEach( (col) => {
+      this.defaultRow[col.name] = col.default === undefined ? '' : col.default;
+
+      switch (col.class) {
+        case 0: // Meta Column
+        case 2: // Auto Column
+          Object.defineProperty(this.data, col.name, {
+            get: () => {
+              if (this.currentId) return this.data[this.currentId][col.name];
+              return this.defaultRow[col.name];
+            }
+          });
+          break;
+        case 1: // Data Column
+          Object.defineProperty(this.data, col.name, {
+            get: () => {
+              if (this.currentId) return this.data[this.currentId][col.name];
+              return this.defaultRow[col.name];
+            },
+            set: (value) => {
+              if (col.type.startsWith('INT')) return this.buffer[col.name] = parseInt(value);
+              
+              if (col.type.startsWith('BOOL')) return this.buffer[col.name] = (value == true || value == 'true');
+
+              if (col.type.startsWith('DOUBLE') || col.type.startsWith('REAL')) return this.buffer[col.name] = parseFloat(value);
+
+              if (col.type.startsWith('EURO')) return this.buffer[col.name] = Math.round(parseFloat(value) * (10**4));
+
+              this.buffer[col.name] = value;
+              this.run(this.buffer, 'buffer');
+              this.onBufferChanged(this.buffer);
+            }
+          });
+          break;
+        case 3: // Foreign Key
+          Object.defineProperty(this.data, col.name, {
+            get: () => {
+              if (this.currentId) return this.data[this.currentId][col.name];
+              return this.defaultRow[col.name];
+            },
+            set: (value) => {
+              // foreign keys are always ints
+              this.buffer[col.name] = parseInt(value);
+              this.run(this.buffer, 'buffer');
+              this.onBufferChanged(this.buffer);
+            }
+          });
+          Object.defineProperty(this.data, col.table, {
+            get: () => {
+              if (this.currentId) return sheets[col.table].model.at(this.data[this.currentId][col.name]);
+              return sheets[col.table].model.at(this.defaultRow[col.name]);
+            }
+          });
+          break;
+      }
+    });
+
+  }
+
+  at(id) {
+    this.sync();
+    if (id) this.currentId = id;
+    else this.currentId = '';
+    this.filterFn = row => true;
+    return this.data;
+  }
+
+  filterFn() { return true; }
+  filter(filterFn) {
+    this.sync();
+    this.filterFn = filterFn;
+    this.currentId = this.getMaxIndex();
+    return this.data;
+  }
+
+  parseRow(row) {
+    this.columns.forEach( (col) => {
+      if (col.name === 'id') return row['id'] = parseInt(row['id']);
+
+      if (
+        col.type.startsWith('INT') ||
+        col.type.startsWith('EURO')
+      ) {
+        if (Array.isArray(row[col.name])) return row[col.name] = row[col.name].map( val => parseInt(val) );
+        return row[col.name] = parseInt(row[col.name]);
+      }
+      
+      if (
+        col.type.startsWith('BOOL')
+      ) {
+      if (Array.isArray(row[col.name])) return row[col.name] = row[col.name].map( val => val == true );
+        return row[col.name] = row[col.name] == true;
+      }
+
+      if (
+        col.type.startsWith('DOUBLE') ||
+        col.type.startsWith('REAL')
+      ) {
+      if (Array.isArray(row[col.name])) return row[col.name] = row[col.name].map( val => parseFloat(val) );
+        return row[col.name] = parseFloat(row[col.name]);
+      }
+    });
+    return row;
+  }
+
+  // find largest numerical index
+  getMaxIndex(useFilter = true) {
+    let max = 0;
+    Object.keys(this.data).forEach( (key) => {
+      const index = parseInt(key);
+      if (
+        !isNaN(index) && 
+        (useFilter === false || this.filterFn(this.data[index])) && 
+        max < index
+      ) max = index;
+    });
+    return max;
+  }
+
+  // callback functions
+  onBufferChanged(buffer) {}
+  onRowDeleted(id) {}
+  onRowChanged(id) {}
+  onRowAdded(id) {}
+  onRepaintDone() {}
+
+  clear() {
+    this.filterFn = row => true;
+    this.onBufferChanged = buffer => {};
+    this.onRowDeleted = id => {};
+    this.onRowChanged = id => {};
+    this.onRepaintDone = () => {};
+    if (this.syncTimeout !== undefined) {
+      clearTimeout(this.syncTimeout);
+      this.syncTimerout = undefined;
+    }
+  }
+
+  run(row, id) {
+    if (typeof row !== 'object') row = this.data[row];
+    this.currentId = (id === undefined) ? row.id : id;
+    this.columns.forEach( (col) => {
+      switch (col.class) {
+        case 2: // Auto Column
+          row[col.name] = col.run(this.data);
+          break;
+      }
+    });
+    return row;
+  }
+
+  update(data) {
+    const arrData = Object.values(data);
+    arrData.forEach( (row) => {
+      if (row.deleted) {
+        this.data[row.id] = undefined;
+        this.onRowDeleted(row.id);
+      } else if (this.data[row.id] !== undefined) {
+        this.data[row.id] = this.run(this.parseRow(row));
+        this.onRowChanged(row.id);
+      } else {
+        this.data[row.id] = this.run(this.parseRow(row));
+        const sortedEntries = this.getSortedData(); 
+        const next = sortedEntries.indexOf(this.data[row.id]) + 1;
+        if (sortedEntries[next] === undefined) this.onRowAdded(row.id);
+        else this.onRowAdded(row.id, next);
+      }
+    });
+    this.currentId = '';
+  }
+
+  repaint(data = {}) {
+    this.onRepaint();
+    Object.values(data).forEach( (row) => {
+      if (row.deleted) this.data[row.id] = undefined;
+      else this.data[row.id] = this.parseRow(row);
+    });
+    console.log('repaint');
+    this.getSortedData().forEach( (row) => {
+      this.run(row);
+      this.onRowAdded(row.id);
+    });
+    this.currentId = '';
+  }
+
+  getSortedData() {
+    // define sort function
+    let sortFn;
+    if (this.order === undefined) {
+      sortFn = (rowA, rowB) => {
+        return rowB.id - rowA.id;
+      };
+    } else {
+      const reverse = this.order.ascending ? 1 : -1;
+      if (this.order.column.type !== undefined && this.order.column.type.startsWith('VARCHAR')) {
+        sortFn = (rowA, rowB) => {
+          const valA = rowA[this.order.column.name].toUpperCase();
+          const valB = rowB[this.order.column.name].toUpperCase();
+          if (valA < valB) return reverse * -1;
+          if (valA > valB) return reverse * 1;
+          return 0;
+        };
+      } else {
+        sortFn = (rowA, rowB) => {
+          if (!rowA[this.order.column.name] && !rowB[this.order.column.name]) return 0;
+          if (!rowA[this.order.column.name]) return reverse * -1;
+          if (!rowB[this.order.column.name]) return reverse * 1;
+          return reverse * (rowA[this.order.column.name] - rowB[this.order.column.name])
+        };
+      }
+    }
+    // return data as array sorted with sortFn
+    return Object.values(this.data).filter( row => typeof row === 'object' ).sort(sortFn); // apply sort
+  }
+
+  // Loop over all Rows where Order does not matter
+  // might be faster then iterating in ascending or descending order especially for large datasets
+  forAll(doThis) {
+    Object.entries(this.data).forEach( ([key, row]) => {
+      const index = parseInt(key);
+      if (!isNaN(index)) {
+        doThis(row, index);
+      }
+    });
+  }
+
+  // Loop over all rows in ascending order
+  forAllAsc(doThis, minIndex = 1, maxIndex = this.getMaxIndex(false)) {
+    for (var index = minIndex; index <= maxIndex; index++) {
+      if (this.data[index] !== undefined) {
+        doThis(this.data[index], index);
+      }
+    }
+  }
+
+  // Loop over all rows in specified order
+  forAllSorted(doThis) {
+    Object.entries(this.data).filter( ([id, row]) => !isNaN(parseInt(id)) )
+      .sort(this.getSort())
+      .forEach( ([id, row]) => doThis(row, id) );
+  }
+
+  // copy a row to buffer in order to edit non-destructively
+  edit(id) {
+    if (id === 'new') {
+      this.buffer = Object.assign({}, this.defaultRow);
+      this.run(this.buffer, 'buffer');
+    }
+    else this.buffer = Object.assign({}, this.data[id]);
+    this.currentId = 'buffer';
+  }
+
+  editDone() {
+    this.buffer = undefined;
+  }
+
+  // return only data and foreign key fields for ajax requests
+  getFormData() {
+    const data = {};
+    this.columns.forEach( (col) => {
+      switch (col.class) {
+        case 1:
+          if (this.buffer[col.name] === 0 || this.buffer[col.name]) data[col.name] = this.buffer[col.name];
+          break;
+        case 3:
+          if (this.buffer[col.name]) data[col.name] = this.buffer[col.name];
+          break;
+      }
+    });
+    return data;
+  }
+
+  // api requests
+  sync(repaint = false, onSuccess, onError) {
+    console.log('sync', repaint);
+    const currentClientTime = Date.now();
+    const onSuccessFn = (response) => {
+      this.lastUpdate = {
+        server: response.time,
+        client: currentClientTime
+      };
+      if (repaint) this.repaint(response.data);
+      else this.update(response.data);
+      // if syncTimeout is set reset timeout to 5 min
+      if (this.syncTimeout !== undefined) {
+        if (this.syncTimeout !== true) clearTimeout(this.syncTimeout);
+        this.syncTimeout = setTimeout(() => this.sync(), 300000);
+      }
+      if (typeof onSuccess === 'function') onSuccess();
+    }
+    if (this.lastUpdate === undefined) {
+      this.api.xhrRequest(
+        {operation: 'SELECT', tableName: this.name},
+        onSuccessFn,
+        onError
+      );
+    } else {
+      // skip if less than 20 sec since last update
+      if(currentClientTime - this.lastUpdate.client < 20000) {
+        if (repaint) this.repaint();
+        return;
+      }
+      this.api.xhrRequest(
+        {operation: 'SELECT', tableName: this.name, lastUpdate: this.lastUpdate.server},
+        onSuccessFn,
+        onError
+      );
+    }
+  }
+  insert(onSuccess, onError) {
+    this.api.xhrRequest(
+      {
+        operation: 'INSERT', 
+        tableName: this.name, 
+        lastUpdate: this.lastUpdate.server, 
+        data: this.getFormData()
+      },
+      (response) => { // onSuccess
+        this.lastUpdate = {
+          server: response.time,
+          client: Date.now()
+        };
+        this.editDone();
+        this.update(response.data);
+        if (typeof onSuccess === 'function') onSuccess();
+      },
+      onError
+    );
+  }
+  alter(id, onSuccess, onError) {
+    this.api.xhrRequest(
+      {
+        operation: 'ALTER',
+        tableName: this.name,
+        lastUpdate: this.lastUpdate.server,
+        row: id,
+        data: this.getFormData()
+      },
+      (response) => { // onSuccess
+        this.lastUpdate = {
+          server: response.time,
+          client: Date.now()
+        };
+        this.editDone();
+        this.update(response.data);
+        if (typeof onSuccess === 'function') onSuccess();
+      },
+      onError
+    );
+  }
+  delete(id, onSuccess, onError) {
+    this.api.xhrRequest(
+      {
+        operation: 'DELETE',
+        tableName: this.name,
+        lastUpdate: this.lastUpdate.server,
+        row: id
+      },
+      (response) => { // onSuccess
+        this.lastUpdate = {
+          server: response.time,
+          client: Date.now()
+        };
+        this.editDone();
+        this.update(response.data);
+        if (typeof onSuccess === 'function') onSuccess();
+      },
+      onError
+    );
+  }
+  
+
+}
+
 class TrekSmartInput {
   
   constructor(column, value, target, tabindex, onUpdate, suggestionModel, onShowSuggestion, onHideSuggestion) {
@@ -176,425 +608,6 @@ class TrekSmartInput {
   }
 }
   
-
-
-class TrekTableModel {
-
-  constructor(name, sheets, api) {
-    this.name = name;
-    this.api = api;
-    this.columns = sheets[name].columns;
-    this[''] = ''; // return empty string if requesting row from other table where id is not specified yet
-
-
-    
-    // initialize data object
-    this.data = { 
-      defaultRow: {},
-
-      forEach: (doThis, maxIndex = this.currentId) => {
-        for (var index = 1; index <= maxIndex; index++) {
-          if (this.data[index] !== undefined && this.filterFn(this.data[index])) {
-            this.currentId = index;
-            doThis(this.data, index);
-          }
-        }
-      },
-
-      sum: (column) => {
-        let sum = 0;
-        this.data.forEach( row => sum += row[column] );
-        return sum;
-      },
-
-      avg: (column) => {
-        let length = 0;
-        let sum = 0;
-        this.data.forEach( (row) => {
-          sum += row[column];
-          length++;
-        });
-        return sum / length;
-      }
-    };
-
-    // access to other tables
-    Object.entries(sheets).forEach( ([sheetName, sheet]) => {
-      const keyColumn = this.name + '_id';
-      if (sheetName !== this.name && sheet.columns.find( col => col.name === keyColumn ) !== undefined) {
-        Object.defineProperty(this.data, sheetName, {
-          get: () => {
-            return sheets[sheetName].model.filter( row => row[keyColumn] == this.currentId );
-          }
-        });
-      }
-    });
-
-    // attach accessors
-    this.columns.forEach( (col) => {
-      this.data.defaultRow[col.name] = col.default === undefined ? '' : col.default;
-
-      switch (col.class) {
-        case 0: // Meta Column
-        case 2: // Auto Column
-          Object.defineProperty(this.data, col.name, {
-            get: () => {
-              return this.data[this.currentId][col.name];
-            }
-          });
-          break;
-        case 1: // Data Column
-          Object.defineProperty(this.data, col.name, {
-            get: () => {
-              return this.data[this.currentId][col.name];
-            },
-            set: (value) => {
-              if (col.type.startsWith('INT')) return this.data.buffer[col.name] = parseInt(value);
-              
-              if (col.type.startsWith('BOOL')) return this.data.buffer[col.name] = (value == true || value == 'true');
-
-              if (col.type.startsWith('DOUBLE') || col.type.startsWith('REAL')) return this.data.buffer[col.name] = parseFloat(value);
-
-              if (col.type.startsWith('EURO')) return this.data.buffer[col.name] = Math.round(parseFloat(value) * (10**4));
-
-              this.data.buffer[col.name] = value;
-              this.run(this.data.buffer, 'buffer');
-              this.onBufferChanged(this.data.buffer);
-            }
-          });
-          break;
-        case 3: // Foreign Key
-          Object.defineProperty(this.data, col.name, {
-            get: () => {
-              return this.data[this.currentId][col.name];
-            },
-            set: (value) => {
-              // foreign keys are always ints
-              this.data.buffer[col.name] = parseInt(value);
-              this.run(this.data.buffer, 'buffer');
-              this.onBufferChanged(this.data.buffer);
-            }
-          });
-          Object.defineProperty(this.data, col.table, {
-            get: () => {
-              return sheets[col.table].model.at(this.data[this.currentId][col.name]);
-            }
-          });
-          break;
-      }
-    });
-
-  }
-
-  at(id) {
-    this.sync();
-    if (id) this.currentId = id;
-    else this.currentId = 'defaultRow';
-    this.filterFn = row => true;
-    return this.data;
-  }
-
-  filterFn() { return true; }
-  filter(filterFn) {
-    this.sync();
-    this.filterFn = filterFn;
-    this.currentId = this.getMaxIndex();
-    return this.data;
-  }
-
-  // callback functions
-  onBufferChanged(buffer) {}
-  onRowDeleted(id) {}
-  onRowChanged(id) {}
-  onRowAdded(id) {}
-  onRepaintDone() {}
-
-  clear() {
-    this.filterFn = row => true;
-    this.onBufferChanged = buffer => {};
-    this.onRowDeleted = id => {};
-    this.onRowChanged = id => {};
-    this.onRepaintDone = () => {};
-    if (this.syncTimeout !== undefined) {
-      clearTimeout(this.syncTimeout);
-      this.syncTimerout = undefined;
-    }
-  }
-
-  run(row, id) {
-    if (typeof row !== 'object') row = this.data[row];
-    this.currentId = (id === undefined) ? row.id : id;
-    this.columns.forEach( (col) => {
-      switch (col.class) {
-        case 2: // Auto Column
-          row[col.name] = col.run(this.data);
-          break;
-      }
-    });
-    return row;
-  }
-
-  update(data) {
-    const arrData = Object.values(data);
-    arrData.forEach( (row) => {
-      if (row.deleted) this.data[row.id] = undefined;
-      else if (this.data[row.id] !== undefined) {
-        this.data[row.id] = this.run(this.parseRow(row));
-        this.onRowChanged(row.id);
-      } else {
-        this.data[row.id] = this.run(this.parseRow(row));
-        const sortedEntries = this.getSortedEntries(); 
-        const next = sortedEntries.findIndex( ([id, ]) => id === row.id ) + 1;
-        if (sortedEntries[next] === undefined) this.onRowAdded(row.id);
-        else this.onRowAdded(row.id, next);
-      }
-    });
-    this.currentId = 'defaultRow';
-  }
-
-  repaint(data = {}) {
-    this.onRepaint();
-    Object.values(data).forEach( (row) => {
-      if (row.deleted) this.data[row.id] = undefined;
-      else this.data[row.id] = this.parseRow(row);
-    });
-    console.log('repaint');
-    this.getSortedEntries().forEach( ([id, row]) => {
-        this.run(row, id);
-        this.onRowAdded(id);
-      });
-    this.currentId = 'defaultRow';
-  }
-
-  getSortedEntries() {
-    return Object.entries(this.data).filter( ([id, row]) => !isNaN(parseInt(id)) ).sort(this.getSort())
-  }
-
-  parseRow(row) {
-    this.columns.forEach( (col) => {
-      if (
-        col.type.startsWith('INT') ||
-        col.type.startsWith('EURO')
-      ) {
-        if (Array.isArray(row[col.name])) return row[col.name] = row[col.name].map( val => parseInt(val) );
-        return row[col.name] = parseInt(row[col.name]);
-      }
-      
-      if (
-        col.type.startsWith('BOOL')
-      ) {
-      if (Array.isArray(row[col.name])) return row[col.name] = row[col.name].map( val => val == true );
-        return row[col.name] = row[col.name] == true;
-      }
-
-      if (
-        col.type.startsWith('DOUBLE') ||
-        col.type.startsWith('REAL')
-      ) {
-      if (Array.isArray(row[col.name])) return row[col.name] = row[col.name].map( val => parseFloat(val) );
-        return row[col.name] = parseFloat(row[col.name]);
-      }
-    });
-    return row;
-  }
-
-  // find largest numerical index
-  getMaxIndex(useFilter = true) {
-    let max = 0;
-    Object.keys(this.data).forEach( (key) => {
-      const index = parseInt(key);
-      if (
-        !isNaN(index) && 
-        (useFilter === false || this.filterFn(this.data[index])) && 
-        max < index
-      ) max = index;
-    });
-    return max;
-  }
-
-  // Loop over all Rows where Order does not matter
-  // might be faster then iterating in ascending or descending order especially for large datasets
-  forAll(doThis) {
-    Object.entries(this.data).forEach( ([key, row]) => {
-      const index = parseInt(key);
-      if (!isNaN(index)) {
-        doThis(row, index);
-      }
-    });
-  }
-
-  // Loop over all rows in ascending order
-  forAllAsc(doThis, minIndex = 1, maxIndex = this.getMaxIndex(false)) {
-    for (var index = minIndex; index <= maxIndex; index++) {
-      if (this.data[index] !== undefined) {
-        doThis(this.data[index], index);
-      }
-    }
-  }
-
-  getSort() {
-    const reverse = this.order !== undefined && this.order.ascending ? 1 : -1;
-    if (this.order === undefined || this.order.column.name === 'id') {
-      return ([idA, rowA], [idB, rowB]) => {
-        return reverse * (idA - idB);
-      };
-    } else if (this.order.column.type.startsWith('VARCHAR')) {
-      return ([idA, rowA], [idB, rowB]) => {
-        const valA = rowA[this.order.column.name].toUpperCase();
-        const valB = rowB[this.order.column.name].toUpperCase();
-        if (valA < valB) return reverse * -1;
-        if (valA > valB) return reverse * 1;
-        return 0;
-      };
-    } else {
-      return ([idA, rowA], [idB, rowB]) => {
-        if (!rowA[this.order.column.name] && !rowB[this.order.column.name]) return 0;
-        if (!rowA[this.order.column.name]) return reverse * -1;
-        if (!rowB[this.order.column.name]) return reverse * 1;
-        return reverse * rowA[this.order.column.name] - rowB[this.order.column.name] 
-      };
-    }
-  }
-
-  // Loop over all rows in specified order
-  forAllSorted(doThis) {
-    Object.entries(this.data).filter( ([id, row]) => !isNaN(parseInt(id)) )
-      .sort(this.getSort())
-      .forEach( ([id, row]) => doThis(row, id) );
-  }
-
-  // copy a row to buffer in order to edit non-destructively
-  edit(id) {
-    if (id === 'new') {
-      this.data.buffer = Object.assign({}, this.data.defaultRow);
-      this.run(this.data.buffer, 'buffer');
-    }
-    else this.data.buffer = Object.assign({}, this.data[id]);
-    this.currentId = 'buffer';
-  }
-
-  editDone() {
-    this.data.buffer = undefined;
-  }
-
-  // return only data and foreign key fields for ajax requests
-  getFormData() {
-    const data = {};
-    this.columns.forEach( (col) => {
-      switch (col.class) {
-        case 1:
-          if (this.data.buffer[col.name] === 0 || this.data.buffer[col.name]) data[col.name] = this.data.buffer[col.name];
-          break;
-        case 3:
-          if (this.data.buffer[col.name]) data[col.name] = this.data.buffer[col.name];
-          break;
-      }
-    });
-    return data;
-  }
-
-  // api requests
-  sync(repaint = false, onSuccess, onError) {
-    console.log('sync', repaint);
-    const currentClientTime = Date.now();
-    const onSuccessFn = (response) => {
-      this.lastUpdate = {
-        server: response.time,
-        client: currentClientTime
-      };
-      if (repaint) this.repaint(response.data);
-      else this.update(response.data);
-      // if syncTimeout is set reset timeout to 5 min
-      if (this.syncTimeout !== undefined) {
-        if (this.syncTimeout !== true) clearTimeout(this.syncTimeout);
-        this.syncTimeout = setTimeout(() => this.sync(), 300000);
-      }
-      if (typeof onSuccess === 'function') onSuccess();
-    }
-    if (this.lastUpdate === undefined) {
-      this.api.xhrRequest(
-        {operation: 'SELECT', tableName: this.name},
-        onSuccessFn,
-        onError
-      );
-    } else {
-      // skip if less than 20 sec since last update
-      if(currentClientTime - this.lastUpdate.client < 20000) {
-        if (repaint) this.repaint();
-        return;
-      }
-      this.api.xhrRequest(
-        {operation: 'SELECT', tableName: this.name, lastUpdate: this.lastUpdate.server},
-        onSuccessFn,
-        onError
-      );
-    }
-  }
-  insert(onSuccess, onError) {
-    this.api.xhrRequest(
-      {
-        operation: 'INSERT', 
-        tableName: this.name, 
-        lastUpdate: this.lastUpdate.server, 
-        data: this.getFormData()
-      },
-      (response) => { // onSuccess
-        this.lastUpdate = {
-          server: response.time,
-          client: Date.now()
-        };
-        this.editDone();
-        this.update(response.data);
-        if (typeof onSuccess === 'function') onSuccess();
-      },
-      onError
-    );
-  }
-  alter(id, onSuccess, onError) {
-    this.api.xhrRequest(
-      {
-        operation: 'ALTER',
-        tableName: this.name,
-        lastUpdate: this.lastUpdate.server,
-        row: id,
-        data: this.getFormData()
-      },
-      (response) => { // onSuccess
-        this.lastUpdate = {
-          server: response.time,
-          client: Date.now()
-        };
-        this.editDone();
-        this.update(response.data);
-        if (typeof onSuccess === 'function') onSuccess();
-      },
-      onError
-    );
-  }
-  delete(id, onSuccess, onError) {
-    this.api.xhrRequest(
-      {
-        operation: 'DELETE',
-        tableName: this.name,
-        lastUpdate: this.lastUpdate.server,
-        row: id
-      },
-      (response) => { // onSuccess
-        this.lastUpdate = {
-          server: response.time,
-          client: Date.now()
-        };
-        this.editDone();
-        this.update(response.data);
-        if (typeof onSuccess === 'function') onSuccess();
-      },
-      onError
-    );
-  }
-  
-
-}
-
 
 class TrekTableView {
 
