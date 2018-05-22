@@ -123,7 +123,7 @@ class TrekTableModel {
           });
           Object.defineProperty(this.data, col.table, {
             get: () => {
-              //console.log('get table', col.table,' from ',sheets,', currentId',this.currentId);
+              console.log('get table', col.table,' from ',sheets,', currentId',this.currentId, 'data', this.data);
               if (this.currentId) return sheets[col.table].model.at(this.data[this.currentId][col.name]);
               return sheets[col.table].model.at(this.buffer[col.name]);
             }
@@ -275,7 +275,8 @@ class TrekTableModel {
         this.data[row.id] = this.run(this.parseRow(row));
         this.onRowChanged(row.id);
       } else {
-        this.data[row.id] = this.run(this.parseRow(row));
+        this.data[row.id] = this.parseRow(row);
+        this.run(this.data[row.id]);
         const sortedEntries = this.getSortedData(); 
         const next = sortedEntries.indexOf(this.data[row.id]) + 1;
         if (sortedEntries[next] === undefined) this.onRowAdded(row.id);
@@ -954,17 +955,53 @@ class TrekTableView {
         th.appendChild(document.createElement('br'));
         
         // filters
+        const p = document.createElement('p');
+        p.classList.add('control', 'has-icons-left');
+        const filterIcon = document.createElement('span');
+        filterIcon.classList.add('icon', 'is-small', 'is-left');
+        filterIcon.innerHTML = `<i class="fas fa-filter"></i>`;
+        const deleteIcon = document.createElement('span');
+        deleteIcon.classList.add('icon', 'is-small', 'is-right');
+        deleteIcon.innerHTML = `<a class="delete is-small"></a>`;
+        deleteIcon.style.display = 'none';
         const input = document.createElement('input');
         input.classList.add('input', 'is-small');
         input.type = 'text';
+        input.placeholder = `by ${col.name}`;
+        input.addEventListener('focus', () => {
+          p.classList.remove('has-icons-left');
+          filterIcon.style.display = 'none';
+        });
+        input.addEventListener('blur', () => {
+          if (input.value === '') {
+            p.classList.add('has-icons-left');
+            filterIcon.style.display = '';
+          }
+        });
         input.addEventListener('input', () => {
+          if (input.value === '') {
+            p.classList.remove('has-icons-right');
+            deleteIcon.style.display = 'none';
+          } else {
+            p.classList.add('has-icons-right');
+            deleteIcon.style.display = '';
+          }
           col.filterValue = input.value;
           this.model.applyFilters();
         });
-        th.appendChild(input);
-
-
-
+        input.addEventListener('click', (event) => {
+          if (event.layerX > input.offsetWidth - 20) {
+            input.value = '';
+            p.classList.remove('has-icons-right');
+            deleteIcon.style.display = 'none';
+            col.filterValue = input.value;
+            this.model.applyFilters();
+          }
+        });
+        p.appendChild(input);
+        p.appendChild(filterIcon);
+        p.appendChild(deleteIcon);
+        th.appendChild(p);
         tr.appendChild(th);
       });
     }
