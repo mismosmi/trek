@@ -103,7 +103,7 @@ class TrekTableModel {
               if (col.type.startsWith('EURO')) return this.buffer[col.name] = Math.round(parseFloat(value) * (10**4));
 
               this.buffer[col.name] = value;
-              this.run(this.buffer, 'buffer');
+              this.run(this.buffer, '');
               this.onBufferChanged(this.buffer);
             }
           });
@@ -117,7 +117,7 @@ class TrekTableModel {
             set: (value) => {
               // foreign keys are always ints
               this.buffer[col.name] = parseInt(value);
-              this.run(this.buffer, 'buffer');
+              this.run(this.buffer, '');
               this.onBufferChanged(this.buffer);
             }
           });
@@ -756,7 +756,8 @@ class TrekTableView {
 
     // append row at end of tbody
     this.model.onRowAdded = (id, next) => {
-      if (next !== undefined) this.body.insertBefore(this.getRow(id), document.getElementById(next));
+      console.log('onRowAdded',next);
+      if (next !== undefined) this.body.insertBefore(this.getRow(id), this.body.childNodes[next]);
       else this.body.appendChild(this.getRow(id));
     }
 
