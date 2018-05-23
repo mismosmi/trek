@@ -72,6 +72,25 @@ class TrekTableModel {
       }
     });
 
+    // attach accessors for Meta columns
+    Object.defineProperty(this.data, 'id', {
+      get: () => {
+        if (this.currentId) return this.data[this.currentId].id;
+        return this.buffer.id;
+      }
+    });
+    Object.defineProperty(this.data, 'createdate', {
+      get: () => {
+        if (this.currentId) return this.data[this.currentId].createdate;
+        return this.buffer.createdate;
+      }
+    });
+    Object.defineProperty(this.data, 'modifieddate', {
+      get: () => {
+        if (this.currentId) return this.data[this.currentId].modifieddate;
+        return this.buffer.modifieddate;
+      }
+    });
     // attach accessors
     // set missing column types
     this.columns.forEach( (col) => {
@@ -88,6 +107,7 @@ class TrekTableModel {
               col.type = 'timestamp';
               break;
           }
+          break;
         case 2: // Auto Column
           Object.defineProperty(this.data, col.name, {
             get: () => {
@@ -180,7 +200,7 @@ class TrekTableModel {
         return row[col.name] = parseFloat(row[col.name]);
       }
 
-      if (row[col.name]) return row[col.name];
+      if (row[col.name] !== undefined) return row[col.name];
       return row[col.name] = this.defaultRow[col.name];
     });
     return row;
