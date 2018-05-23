@@ -73,11 +73,21 @@ class TrekTableModel {
     });
 
     // attach accessors
+    // set missing column types
     this.columns.forEach( (col) => {
       this.defaultRow[col.name] = col.default === undefined ? '' : col.default;
 
       switch (col.class) {
         case 0: // Meta Column
+          switch (col.name) {
+            case 'id':
+              col.type = 'int';
+              break;
+            case 'createdate':
+            case 'modifieddate':
+              col.type = 'timestamp';
+              break;
+          }
         case 2: // Auto Column
           Object.defineProperty(this.data, col.name, {
             get: () => {
@@ -109,6 +119,7 @@ class TrekTableModel {
           });
           break;
         case 3: // Foreign Key
+          col.type = 'int';
           Object.defineProperty(this.data, col.name, {
             get: () => {
               if (this.currentId) return this.data[this.currentId][col.name];
