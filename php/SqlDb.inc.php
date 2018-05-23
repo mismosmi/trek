@@ -123,7 +123,10 @@ class SqlDb {
                 case 3: // Foreign Key
                     $colName = "{$col['table']}_id";
                     $query .= ", $colName BIGINT UNSIGNED";
-                    $fk .= ", FOREIGN KEY ($colName) REFERENCES {$col['table']}(id) ON DELETE SET NULL ON UPDATE CASCADE";
+                    $fk .= ", CONSTRAINT `fk_{$name}_{$colName}` FOREIGN KEY ($colName) REFERENCES {$col['table']}(id) ON UPDATE CASCADE";
+                    if (empty($col['required']) || !$col['required']) $fk .= " ON DELETE SET NULL";
+                    else $fk .= " ON DELETE RESTRICT";
+
                     break;
                 }
                 if (!empty($col['required']) && $col['required']) $query .= " NOT NULL";
@@ -133,11 +136,10 @@ class SqlDb {
 
             //echo $query."\n";
             $this->db->exec($query);
-            return ['success' => True, 'info' => "Successfully created table \"$name\"."];
+            return "Success: created table \"$name\".\n";
         } catch (PDOException $e) {
             //echo $e->getMessage()."\n";
-            return ['success' => False, 'errormsg' => 
-                "failed creating table $name: ".$e->getMessage()];
+            return "Error: failed creating table $name: ".$e->getMessage()."\nusing query:\n".$query."\n";
         }
     }
 

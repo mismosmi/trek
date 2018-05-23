@@ -166,17 +166,6 @@ class RestApi extends SqlDb
                 : ["modifieddate >= {$postData['lastUpdate']}"];
 
             $ret = $this->dbSelect($postData['tableName'], $columns, $where);
-            if (!$ret['success']) {
-                if (empty($postData['lastUpdate'])) {
-                    $createmsg = "";
-                    $create = $this->dbCreateTable($postData['tableName'], $this->getColumns($postData['tableName']));
-                    $createmsg .= ($create['success'] ? $create['info'] : $create['errormsg']);
-                    $ret = $this->dbSelect($postData['tableName'], $columns);
-                    if ($ret['success']) $ret['info'] = $createmsg;
-                    else $ret['errormsg'] .= "\n".$createmsg;
-                } else $ret['errormsg'] = 
-                    "Something went wrong: trying to refresh table \"{$postData['tableName']}\"";
-            }
         }
         $ret['time'] = $time;
         return json_encode($ret);

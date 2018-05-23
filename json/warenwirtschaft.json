@@ -1,6 +1,7 @@
 {
     "name": "warenwirtschaft",
     "title": "Warenwirtschaft",
+    "users": true,
     "tables": {
         "product": {
             "title": "Produkte",
@@ -14,41 +15,42 @@
                     "name": "category",
                     "title": "Kategorie",
                     "class": 1,
-                    "type": "VARCHAR(30)"
+                    "type": "string"
                 },
                 {
                     "name": "name",
                     "title": "Produktname",
                     "class": 1,
-                    "type": "VARCHAR(30)",
+                    "type": "string",
                     "required": true
                 },
                 {
                     "name": "unitprice",
                     "title": "Preis/Einheit",
                     "class": 1,
-                    "type": "EURO",
+                    "type": "euro",
                     "required": true
                 },
                 {
                     "name": "unit",
                     "title": "Teile/Einheit",
                     "class": 1,
-                    "type": "INTEGER",
+                    "type": "int",
+                    "required": true,
                     "default": 1
                 },
                 {
                     "name": "pieceprice",
                     "title": "Preis/Teil",
                     "class": 2,
-                    "type": "EURO",
+                    "type": "euro",
                     "js": "tv.unitprice / tv.unit"
                 },
                 {
                     "name": "notes",
                     "title": "Notizen",
                     "class": 1,
-                    "type": "VARCHAR(30)"
+                    "type": "string"
                 }
             ]
         },
@@ -64,57 +66,59 @@
                     "name": "category",
                     "title": "Kategorie",
                     "class": 1,
-                    "type": "VARCHAR(30)"
+                    "type": "string"
                 },
                 {
                     "name": "zone",
                     "title": "Zone",
                     "class": 1,
-                    "type": "VARCHAR(30)"
+                    "type": "string",
+                    "required": true
                 },
                 {
                     "name": "what",
                     "title": "Projektdefinition",
                     "class": 1,
-                    "type": "VARCHAR(30)"
+                    "type": "string",
+                    "required": true
                 },
                 {
                     "name": "department",
                     "title": "Department/Team",
                     "class": 1,
-                    "type": "VARCHAR(30)"
+                    "type": "string"
                 },
                 {
                     "name": "responsibility",
                     "title": "Verantwortliche Person",
                     "class": 1,
-                    "type": "VARCHAR(30)"
+                    "type": "string"
                 },
                 {
                     "name": "budgetsum",
                     "title": "Summe",
                     "class": 1,
-                    "type": "EURO"
+                    "type": "euro"
                 },
                 {
                     "name": "spending",
                     "title": "Budget Ausgegeben",
                     "class": 2,
-                    "type": "EURO",
+                    "type": "euro",
                     "js": "tv.outgoing.sum('ordersum') - tv.retoure.sum('ordersum')"
                 },
                 {
                     "name": "budgetleft",
                     "title": "Budget Übrig",
                     "class": 2,
-                    "type": "EURO",
+                    "type": "euro",
                     "js": "tv.budgetsum - tv.spending"
                 },
                 {
                     "name": "notes",
                     "title": "Notizen",
                     "class": 1,
-                    "type": "VARCHAR(30)"
+                    "type": "string"
                 }
             ]
         },
@@ -127,14 +131,17 @@
                     "class": 3
                 },
                 {
-                    "table": "product",
-                    "title": "Produkt ID",
-                    "class": 3
+                    "name": "whatproject",
+                    "title": "Projekt",
+                    "class": 2,
+                    "js": "tv.project.what",
+                    "type": "string"
                 },
                 {
-                    "name": "modifieddate",
-                    "title": "Zuletzt bearbeitet",
-                    "class": 0
+                    "table": "product",
+                    "title": "Produkt ID",
+                    "class": 3,
+                    "required": true
                 },
                 {
                     "name": "productcategory",
@@ -146,37 +153,127 @@
                     "name": "productname",
                     "title": "Produktname",
                     "class": 2,
-                    "js": "tv.product.name"
+                    "js": "tv.product.name",
+                    "type": "string"
                 },
                 {
                     "name": "unitprice",
                     "title": "Preis/Einheit",
                     "class": 2,
-                    "type": "EURO",
+                    "type": "euro",
                     "js": "tv.product.unitprice"
                 },
                 {
                     "name": "quantity",
                     "title": "Anzahl Einheiten",
                     "class": 1,
-                    "type": "INTEGER"
+                    "type": "int",
+                    "required": true,
+                    "default": 1
                 },
                 {
                     "name": "ordersum",
                     "title": "Summe Bestellung",
                     "class": 2,
-                    "type": "EURO",
+                    "type": "euro",
                     "js": "tv.quantity * tv.product.unitprice"
+                },
+                {
+                    "name": "notes",
+                    "title": "Notizen",
+                    "class": 1,
+                    "type": "string"
+                },
+                {
+                    "name": "modifieddate",
+                    "title": "Zuletzt bearbeitet",
+                    "class": 0
+                },
+                {
+                    "name": "modifieduser",
+                    "title": "Bearbeitet von",
+                    "class": 0
                 }
             ]
         },
         "outgoing": {
             "title": "Warenausgang",
-            "column_reference": "incoming"
+            "columns": [
+                {
+                    "table": "project",
+                    "title": "Projekt ID",
+                    "class": 3,
+                    "required": true
+                },
+                {
+                    "name": "whatproject",
+                    "title": "Projekt",
+                    "class": 2,
+                    "js": "tv.project.what",
+                    "type": "string"
+                },
+                {
+                    "table": "product",
+                    "title": "Produkt ID",
+                    "class": 3,
+                    "required": true
+                },
+                {
+                    "name": "productcategory",
+                    "title": "Produktkategorie",
+                    "class": 2,
+                    "js": "tv.product.category"
+                },
+                {
+                    "name": "productname",
+                    "title": "Produktname",
+                    "class": 2,
+                    "js": "tv.product.name",
+                    "type": "string"
+                },
+                {
+                    "name": "unitprice",
+                    "title": "Preis/Einheit",
+                    "class": 2,
+                    "type": "euro",
+                    "js": "tv.product.unitprice"
+                },
+                {
+                    "name": "quantity",
+                    "title": "Anzahl Einheiten",
+                    "class": 1,
+                    "type": "int",
+                    "required": true,
+                    "default": 1
+                },
+                {
+                    "name": "ordersum",
+                    "title": "Summe Bestellung",
+                    "class": 2,
+                    "type": "euro",
+                    "js": "tv.quantity * tv.product.unitprice"
+                },
+                {
+                    "name": "notes",
+                    "title": "Notizen",
+                    "class": 1,
+                    "type": "string"
+                },
+                {
+                    "name": "modifieddate",
+                    "title": "Zuletzt bearbeitet",
+                    "class": 0
+                },
+                {
+                    "name": "modifieduser",
+                    "title": "Bearbeitet von",
+                    "class": 0
+                }
+            ]
         },
         "retoure": {
             "title": "Retouren",
-            "column_reference": "incoming"
+            "column_reference": "outgoing"
         }
     },
     "order": [

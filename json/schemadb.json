@@ -1,6 +1,7 @@
 {
     "name": "schemadb",
     "title": "Schema Database",
+    "users": false,
     "tables": {
         "schematable": {
             "title": "Schema",
