@@ -17,13 +17,13 @@ echo $db->getHead();
  </div>
 </section>
 <section class="section">
- <div class="container">
+ <div class="container is-fluid is-clearfix">
   <div class="buttons has-addons is-pulled-right">
    <span id="trek-edit-button" class="button is-primary" disabled>Edit</span>
   </div>
 <?php echo $db->getDbNav(); ?>
  </div>
- <div class="container relative">
+ <div class="container is-fluid">
   <div id="trek-container">
   </div>
  </div>

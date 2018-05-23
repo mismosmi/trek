@@ -664,15 +664,29 @@ class TrekTableView {
 
   constructor(model, sheets) {
     this.sheets = sheets;
+    this.model = model;
+
     // create table and append to content-container
     const container = document.getElementById('trek-container');
     container.innerHTML = '';
     this.table = document.createElement('table');
     this.table.id = "#trek-table";
-    this.table.classList.add('table', 'is-fullwidth');
+    this.table.classList.add('table', 'is-narrow');
     container.appendChild(this.table);
+    //const colgroup = document.createElement('colgroup');
+    //this.forEachColumn( (column) => {
+    //  const col = document.createElement('col');
+    //  if (column.type) col.classList.add('column-' + column.type);
+    //  colgroup.appendChild(col);
+    //});
+    //const controlCol = document.createElement('col');
+    //controlCol.classList.add('column-control');
+    //colgroup.appendChild(controlCol);
+    //this.table.appendChild(colgroup);
+
     this.head = document.createElement('thead');
     this.table.appendChild(this.head);
+
     this.body = document.createElement('tbody');
     this.table.appendChild(this.body);
 
@@ -688,13 +702,12 @@ class TrekTableView {
       }
     });
 
-    this.model = model;
 
     // generate and save newRow 
     this.newRow = document.createElement('tr');
     this.newRow.id = '';
     const newTd = document.createElement('td');
-    newTd.colSpan = this.model.columns.reduce( (accumulator, col) => accumulator + this.getColSpan(col), 0 ) + this.getColSpan('control');
+    newTd.colSpan = this.model.columns.length + 1;
 
     this.newRow.appendChild(newTd);
     const newColumnsLayout = document.createElement('div');
@@ -888,6 +901,14 @@ class TrekTableView {
     return this.model.columns.find( col => col.name === name );
   }
 
+  getColSpan(col) {
+    if (col === 'control') return 3;
+    if (col.type === 'string') return 3;
+    if (col.name === 'createdate' || col.name === 'modifieddate') return 2;
+    if (col.type === 'euro') return 2;
+    return 1;
+  }
+
   // generate row formatted as tr
   getRow(id) {
     const tr = document.createElement('tr');
@@ -896,7 +917,7 @@ class TrekTableView {
     this.forEachColumn( (col) => {
       const val = this.getDisplayFormat(col);
       const td = document.createElement('td');
-      td.colSpan = this.getColSpan(col);
+      //td.colSpan = this.getColSpan(col);
       td.setAttribute('data-col', col.name);
       if (col.type === 'int' || col.type === 'float' || col.type === 'euro') {
         td.classList.add('has-text-right');
@@ -906,19 +927,10 @@ class TrekTableView {
       tr.appendChild(td);
     });
     const controlTd = document.createElement('th');
-    controlTd.colSpan = this.getColSpan('control');
-    tr.appendChild(controlTd); // empty header for controls-column
-    tr.appendChild(document.createElement('td')); // empty td for control column
+    //controlTd.colSpan = this.getColSpan('control');
+    tr.appendChild(controlTd); // empty td for controls-column
     tr.addEventListener('click', event => this.edit(event) );
     return tr;
-  }
-
-  getColSpan(col) {
-    if (col === 'control') return 3;
-    if (col.type === 'string') return 3;
-    if (col.name === 'createdate' || col.name === 'modifieddate') return 2;
-    if (col.type === 'euro') return 2;
-    return 1;
   }
 
 
@@ -930,9 +942,14 @@ class TrekTableView {
     if (this.editMode) {
       this.forEachColumn( (col) => {
         const th = document.createElement('th');
-        th.colSpan = this.getColSpan(col);
+        const spacer = document.createElement('div');
+        spacer.classList.add('trek-column', 'trek-column-' + col.type);
+        spacer.innerHTML = '&nbsp;';
+        th.appendChild(spacer);
+        
+        //th.colSpan = this.getColSpan(col);
         th.classList.add('is-unselectable');
-        th.innerHTML = col.title;
+        th.appendChild(document.createTextNode(col.title));
         if (this.model.order.column === col) th.innerHTML += getIcon(true, this.model.order.ascending);
         tr.appendChild(th);
       });
@@ -940,7 +957,11 @@ class TrekTableView {
       // column headers and sorting functions
       this.forEachColumn( (col) => {
         const th = document.createElement('th');
-        th.colSpan = this.getColSpan(col);
+        const spacer = document.createElement('div');
+        spacer.classList.add('trek-column', 'trek-column-' + col.type);
+        spacer.innerHTML = '&nbsp;';
+        th.appendChild(spacer);
+        //th.colSpan = this.getColSpan(col);
         const a = document.createElement('a');
         a.classList.add('is-unselectable');
         a.innerHTML = col.title;
@@ -1026,7 +1047,14 @@ class TrekTableView {
       });
     }
     const controlTh = document.createElement('th');
-    controlTh.colSpan = this.getColSpan('control');
+    const spacer = document.createElement('div');
+    spacer.classList.add('trek-column', 'trek-column-control');
+    spacer.innerHTML = '&nbsp;';
+    controlTh.appendChild(spacer);
+
+    const p = document.createElement('p');
+    p.classList.add('column', 'column-control');
+    //controlTh.colSpan = this.getColSpan('control');
     tr.appendChild(controlTh); // empty header for controls-column
     return tr;
   }
@@ -1034,6 +1062,7 @@ class TrekTableView {
   // generate form
   getFormRow(id) {
     const tr = document.createElement('tr');
+    tr.classList.add('trek-formrow');
     tr.id = id;
     tr.inputs = [];
 
@@ -1053,8 +1082,11 @@ class TrekTableView {
     // loop columns
     this.forEachColumn( (col) => {
       const td = document.createElement('td');
-      td.colSpan = this.getColSpan(col);
-      tr.appendChild(td);
+      //const spacer = document.createElement('div');
+      //spacer.innerHTML = '&nbsp;';
+      //spacer.classList.add('trek-row-formrow');
+      //td.appendChild(spacer);
+      //td.colSpan = this.getColSpan(col);
       td.classList.add('control');
       if (col.type === 'int' || col.type === 'float' || col.type === 'euro') {
         td.classList.add('has-text-right');
@@ -1062,6 +1094,8 @@ class TrekTableView {
       }
       td.setAttribute('data-col', col.name);
       td.style.verticalAlign = 'middle';
+      td.style.height = '39px';
+      tr.appendChild(td);
       let inputDiv;
       let input;
       switch (col.class) {
@@ -1106,7 +1140,7 @@ class TrekTableView {
           tr.inputs.push(input);
           break;
         default:
-          td.innerHTML += this.getDisplayFormat(col);
+          td.innerHTML += `<div class="trek-row-formrow">${this.getDisplayFormat(col)}</div>`;
       }
       if (col.symbol) {
         const symbolspan = document.createElement('span');
@@ -1116,30 +1150,34 @@ class TrekTableView {
     });
 
     const controlTd = document.createElement('td');
-    controlTd.setAttribute('nowrap', true);
-    controlTd.classList.add('buttons','has-addons');
+    const spacer = document.createElement('div');
+    spacer.classList.add('trek-row-formrow');
+    controlTd.appendChild(spacer);
+    const buttons = document.createElement('div');
+    buttons.classList.add('buttons','has-addons');
+    spacer.appendChild(buttons);
     tr.saveButton = document.createElement('span'); // save this in formRow for later
     tr.saveButton.classList.add('button', 'is-link');
     tr.saveButton.addEventListener('click', () => this.save() );
     tr.saveButton.setAttribute('disabled', true);
     tr.saveButton.textContent = 'Save';
     tr.saveButton.tabindex = 1;
-    controlTd.appendChild(tr.saveButton);
+    buttons.appendChild(tr.saveButton);
     tr.cancelButton = document.createElement('span');
     tr.cancelButton.classList.add('button');
     tr.cancelButton.addEventListener('click', () => this.cancel() );
     tr.cancelButton.textContent = 'Cancel';
     tr.cancelButton.tabindex = 1;
-    controlTd.appendChild(tr.cancelButton);
+    buttons.appendChild(tr.cancelButton);
     if (id) {
       tr.deleteButton = document.createElement('span');
       tr.deleteButton.classList.add('button', 'is-danger');
       tr.deleteButton.addEventListener('click', () => this.delete() );
       tr.deleteButton.textContent = 'Delete';
       tr.deleteButton.tabindex = 1;
-      controlTd.appendChild(tr.deleteButton);
+      buttons.appendChild(tr.deleteButton);
     }
-    controlTd.colSpan = this.getColSpan('control');
+    //controlTd.colSpan = this.getColSpan('control');
     tr.appendChild(controlTd);
 
 
