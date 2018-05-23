@@ -5,6 +5,7 @@
 #trek-container {
     overflow-x: auto;
     overflow-y: visible;
+    min-height: 20rem;
 }
 
 #trek-table {

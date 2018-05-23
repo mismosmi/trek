@@ -134,7 +134,7 @@ class TrekTableModel {
           });
           Object.defineProperty(this.data, col.table, {
             get: () => {
-              console.log('get table', col.table,' from ',sheets,', currentId',this.currentId, 'data', this.data);
+              //console.log('get table', col.table,' from ',sheets,', currentId',this.currentId, 'data', this.data);
               if (this.currentId) return sheets[col.table].model.at(this.data[this.currentId][col.name]);
               return sheets[col.table].model.at(this.buffer[col.name]);
             }
@@ -775,7 +775,6 @@ class TrekTableView {
 
     // append row at end of tbody
     this.model.onRowAdded = (id, next) => {
-      console.log('onRowAdded',next);
       if (next !== undefined) this.body.insertBefore(this.getRow(id), this.body.childNodes[next]);
       else this.body.appendChild(this.getRow(id));
     }
@@ -809,7 +808,6 @@ class TrekTableView {
 
     this.model.onHideRow = id => {
       document.getElementById(id).style.display = 'none';
-      console.log('hide',id);
     };
     this.model.onShowRow = id => document.getElementById(id).style.display = '';
 
@@ -820,7 +818,7 @@ class TrekTableView {
     setTimeout(() => this.model.sync(true));
 
     // add Keyboard shortcuts
-    document.addEventListener('keydown', (event) => {
+    const keyAction = (event) => {
       if (this.formRow === undefined) { // no active form
         switch (event.key) {
           case 'Enter':
@@ -840,7 +838,6 @@ class TrekTableView {
         } else if (this.filterMode) { // filter mode
           switch (event.key) {
             case 'Escape':
-              console.log('we should leave filterMode now');
               return;
           }
         } else { // no edit mode, no active form
@@ -885,7 +882,15 @@ class TrekTableView {
           }
         }
       }
-    });
+    };
+
+    document.addEventListener('keyup', keyAction);
+    
+    this.clear = () => {
+      this.editButton.setAttribute('disabled', true);
+      this.model.clear();
+      document.removeEventListener('keyup', keyAction);
+    }
 
 
   }
@@ -1223,7 +1228,7 @@ class TrekTableView {
     this.formRow.saveButton.classList.add('is-loading');
     const onError = () => { // onError
       this.formRow.saveButton.classList.remove('is-loading');
-      this.formRow.classList.add('is-danger');
+      this.formRow.classList.add('has-background-danger');
     }
     if (this.formRow.id) { // row exists, alter
       this.model.alter(
@@ -1295,10 +1300,6 @@ class TrekTableView {
     }
   }
 
-  clear() {
-    this.editButton.setAttribute('disabled', true);
-    this.model.clear();
-  }
 
 }
 
