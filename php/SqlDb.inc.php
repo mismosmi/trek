@@ -102,6 +102,13 @@ class SqlDb {
             }
             foreach ($columns as $col) {
                 switch ($col['class']) {
+                case 0: // Meta Column
+                    switch ($col['name']) {
+                    case "id":
+                        if (!empty($col['barcode']) && $col['barcode'] === 'ean') {
+                            $query .= ", barcode BIGINT(13) UNSIGNED";
+                        }
+                    }
                 case 1: // Data Column
                     switch ($col['type']) {
                     case "euro":

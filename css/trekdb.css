@@ -12,6 +12,10 @@
     table-layout: fixed;
 }
 
+#trek-container thead th {
+    white-space: nowrap;
+}
+
 
 #trek-container div.trek-row-formrow {
     min-height: 39px;

@@ -19,6 +19,7 @@ echo $db->getHead();
 <section class="section">
  <div class="container is-fluid is-clearfix">
   <div class="buttons has-addons is-pulled-right">
+   <span id="trek-print-button" class="button is-link" disabled>Print</span>
    <span id="trek-edit-button" class="button is-primary" disabled>Edit</span>
   </div>
 <?php echo $db->getDbNav(); ?>

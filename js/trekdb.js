@@ -6,6 +6,7 @@
 class TrekTableModel {
 
   constructor(name, sheets, api) {
+    console.log('construct',name);
     this.name = name;
     this.api = api;
     this.columns = sheets[name].columns;
@@ -59,9 +60,10 @@ class TrekTableModel {
       }
     };
 
+
     // access to other tables
+    const keyColumn = this.name + '_id';
     Object.entries(sheets).forEach( ([sheetName, sheet]) => {
-      const keyColumn = this.name + '_id';
       if (sheetName !== this.name && sheet.columns.find( col => col.name === keyColumn ) !== undefined) {
         Object.defineProperty(this.data, sheetName, {
           get: () => {
@@ -76,19 +78,24 @@ class TrekTableModel {
     Object.defineProperty(this.data, 'id', {
       get: () => {
         if (this.currentId) return this.data[this.currentId].id;
-        return this.buffer.id;
+        return this.buffer ? this.buffer.id : '';
       }
     });
+    const idCol = this.columns.find( col => col.name === 'id' );
+    if (idCol !== undefined && idCol.barcode === 'ean') this.eanBarcode = (value) => {
+      this.buffer.barcode = value;
+    };
+
     Object.defineProperty(this.data, 'createdate', {
       get: () => {
         if (this.currentId) return this.data[this.currentId].createdate;
-        return this.buffer.createdate;
+        return this.buffer ? this.buffer.createdate : '';
       }
     });
     Object.defineProperty(this.data, 'modifieddate', {
       get: () => {
         if (this.currentId) return this.data[this.currentId].modifieddate;
-        return this.buffer.modifieddate;
+        return this.buffer ? this.buffer.modifieddate : '';
       }
     });
     // attach accessors
@@ -97,22 +104,11 @@ class TrekTableModel {
       this.defaultRow[col.name] = col.default === undefined ? '' : col.default;
 
       switch (col.class) {
-        case 0: // Meta Column
-          switch (col.name) {
-            case 'id':
-              col.type = 'int';
-              break;
-            case 'createdate':
-            case 'modifieddate':
-              col.type = 'timestamp';
-              break;
-          }
-          break;
         case 2: // Auto Column
           Object.defineProperty(this.data, col.name, {
             get: () => {
               if (this.currentId) return this.data[this.currentId][col.name];
-              return this.buffer[col.name];
+              return this.buffer ? this.buffer[col.name] : this.defaultRow[col.name];
             }
           });
           break;
@@ -121,18 +117,25 @@ class TrekTableModel {
             get: () => {
               //console.log('get',col.name,'id',this.currentId,'buffer',this.buffer);
               if (this.currentId) return this.data[this.currentId][col.name];
-              return this.buffer ? this.buffer[col.name] : '';
+              return this.buffer ? this.buffer[col.name] : this.defaultRow[col.name];
             },
             set: (value) => {
-              if (col.type === 'int') return this.buffer[col.name] = parseInt(value);
-              
-              if (col.type === 'bool') return this.buffer[col.name] = (value == true || value == 'true');
-
-              if (col.type === 'float') return this.buffer[col.name] = parseFloat(value);
-
-              if (col.type === 'euro') return this.buffer[col.name] = Math.round(parseFloat(value) * (10**4));
-
-              this.buffer[col.name] = value;
+              switch (col.type) {
+                case 'int':
+                  this.buffer[col.name] = parseInt(value);
+                  break;
+                case 'bool': 
+                  this.buffer[col.name] = (value == true || value == 'true');
+                  break;
+                case 'float': 
+                  this.buffer[col.name] = parseFloat(value);
+                  break;
+                case 'euro':
+                  this.buffer[col.name] = Math.round(parseFloat(value) * (10**4));
+                  break;
+                default:
+                  this.buffer[col.name] = value;
+              }
               this.run(this.buffer, '');
               this.onBufferChanged(this.buffer);
             }
@@ -143,7 +146,7 @@ class TrekTableModel {
           Object.defineProperty(this.data, col.name, {
             get: () => {
               if (this.currentId) return this.data[this.currentId][col.name];
-              return this.buffer ? this.buffer[col.name] : '';
+              return this.buffer ? this.buffer[col.name] : this.defaultRow[col.name];
             },
             set: (value) => {
               // foreign keys are always ints
@@ -159,7 +162,24 @@ class TrekTableModel {
               return sheets[col.table].model.at(this.buffer[col.name]);
             }
           });
+          if (col.barcode === 'ean') this.eanBarcode = (value) => {
+            this.buffer[col.name] = Object.values(this.sheets[col.table].model.data).find( (search) => {
+              return value === search;
+            }).id;
+          };
           break;
+      }
+    });
+
+    Object.defineProperty(this.data, 'barcode', {
+      get: () => {
+        if (this.currentId) return this.data[this.currentId].barcode;
+        return this.buffer ? this.buffer.barcode : '';
+      },
+      set: (value) => {
+        if (value.length === 13 && this.eanBarcode) this.eanBarcode(parseInt(value));
+        else if (value.startsWith(this.name + '01trek')) this.buffer.id = parseInt(value.slice(value.length - 14));
+        else this.buffer[value.slice(0,value.indexOf('01trek')) + '_id'] = parseInt(value.slice(value.length - 14));
       }
     });
 
@@ -200,7 +220,7 @@ class TrekTableModel {
         return row[col.name] = parseFloat(row[col.name]);
       }
 
-      if (row[col.name] !== undefined) return row[col.name];
+      if (row[col.name] !== undefined && row[col.name] !== null) return row[col.name];
       return row[col.name] = this.defaultRow[col.name];
     });
     return row;
@@ -389,6 +409,7 @@ class TrekTableModel {
   }
 
   resetBuffer() {
+    console.log('resetBuffer', this.defaultRow);
     this.buffer = Object.assign({}, this.defaultRow);
     this.run(this.buffer);
     this.currentId = '';
@@ -399,6 +420,10 @@ class TrekTableModel {
     const data = {};
     this.columns.forEach( (col) => {
       switch (col.class) {
+        case 0:
+          if (col.barcode !== undefined && col.barcode === 'ean' && this.buffer.barcode) {
+            data.barcode = this.buffer.barcode;
+          }
         case 1:
           if (this.buffer[col.name] === 0 || this.buffer[col.name]) data[col.name] = this.buffer[col.name];
           break;
@@ -507,7 +532,6 @@ class TrekTableModel {
       onError
     );
   }
-  
 
 }
 
@@ -698,12 +722,12 @@ class TrekTableView {
     this.model = model;
 
     // create table and append to content-container
-    const container = document.getElementById('trek-container');
-    container.innerHTML = '';
+    this.container = document.getElementById('trek-container');
+    this.container.innerHTML = '';
     this.table = document.createElement('table');
     this.table.id = "#trek-table";
     this.table.classList.add('table', 'is-narrow');
-    container.appendChild(this.table);
+    this.container.appendChild(this.table);
     //const colgroup = document.createElement('colgroup');
     //this.forEachColumn( (column) => {
     //  const col = document.createElement('col');
@@ -732,6 +756,9 @@ class TrekTableView {
         this.enterEditMode();
       }
     });
+    this.printButton = document.getElementById('trek-print-button');
+    this.printButton.removeAttribute('disabled');
+    this.printButton.addEventListener('click', () => this.print() );
 
 
     // generate and save newRow 
@@ -772,6 +799,7 @@ class TrekTableView {
       viewClass: this.constructor.name,
       modelName: this.model.name,
       lastUpdate: this.model.lastUpdate ? this.model.lastUpdate : 0,
+      viewTarget: 'web'
     }, '', url.pathname + url.search);
 
 
@@ -993,6 +1021,7 @@ class TrekTableView {
       // column headers and sorting functions
       this.forEachColumn( (col) => {
         const th = document.createElement('th');
+        
         const spacer = document.createElement('div');
         spacer.classList.add('trek-column', 'trek-column-' + col.type);
         spacer.innerHTML = '&nbsp;';
@@ -1278,7 +1307,6 @@ class TrekTableView {
     if (this.formRow !== undefined) {
       if (this.formRow.id) this.body.replaceChild(this.getRow(this.formRow.id), this.formRow);
       else this.body.replaceChild(this.newRow, this.formRow);
-      this.model.resetBuffer();
       this.formRow = undefined;
     }
   }
@@ -1320,8 +1348,89 @@ class TrekTableView {
     }
   }
 
+  print() {
+    if (this.printWindow !== undefined) this.printWindow.close();
+    const title = this.sheets[this.model.name].title;
+    this.printWindow = window.open('', title);
+    const d = this.printWindow.document;
+    const printHead = d.querySelector('head');
+    // concatenate absolute url to stylesheet and add to print page
+    const currentUrl = new URL(document.location.href);
+    const path = currentUrl.pathname.split('/');
+    path.pop(); // remove filename
+    this.printInfo.stylesheet.split('/').forEach( (dir) => {
+      if (dir === '..') path.pop();
+      else path.push(dir);
+    });
+    const stylesheet = d.createElement('link');
+    stylesheet.type = "text/css";
+    stylesheet.rel = "stylesheet";
+    stylesheet.href = currentUrl.origin + path.join('/');
+    printHead.appendChild(stylesheet);
+    // find body, add title and date
+    const printBody = d.querySelector('body');
+    const titleDiv = d.createElement('div');
+    titleDiv.innerHTML = `<h2 id="title">${title}</h2>`;
+    const date = new Date();
+    titleDiv.innerHTML += `<p id="timestamp"><span id="date">${date.getDate()}.${date.getMonth()}.${date.getFullYear()}</span> <span id="time">${date.getHours()}:${date.getMinutes()}</span></p>`
+    printBody.appendChild(titleDiv);
+    // create table
+    const table = d.createElement('div');
+    table.id = 'table';
+    const head = d.createElement('div');
+    head.classList.add('thead');
+    // add space to generate barcodes
+    const hasBarcode = this.model.columns.find( col => col.name === 'id' ).barcode === 'auto';
+
+    const barcodeSpace = document.createElement('div');
+    if (hasBarcode) {
+      console.log('hasBarcode');
+      this.container.appendChild(barcodeSpace);
+    }
+
+    this.model.getSortedData().forEach( (row) => {
+      const tr = d.createElement('div');
+      tr.classList.add('tr');
+      // generate barcode
+      if (hasBarcode) {
+        console.log('generating barcode for row', row.id);
+        const barcode = document.createElement('img');
+        barcode.id = 'barcode';
+        barcodeSpace.appendChild(barcode);
+        JsBarcode('#barcode', 'abc12345678', {
+          format: 'code128'
+        });
+        const barcodeTd = document.createElement('div');
+        barcodeTd.classList.add('td-barcode');
+        barcodeTd.appendChild(barcode);
+        barcode.id = '';
+        tr.appendChild(barcodeTd);
+      }
+      // generate rest of column
+      this.forEachColumn( (col) => {
+        const td = d.createElement('span');
+        td.classList.add('td', 'td-' + col.type);
+        const label = d.createElement('span');
+        label.classList.add('label');
+        label.textContent = col.title;
+        td.appendChild(label);
+        const content = d.createElement('span');
+        content.textContent = this.getDisplayFormat(col, row);
+        if (col.symbol) content.innerHTML += col.symbol;
+        td.appendChild(content);
+        tr.appendChild(td);
+      });
+      table.appendChild(tr);
+    });
+    printBody.appendChild(table);
+    // clean up
+    if (hasBarcode) this.container.removeChild(barcodeSpace);
+
+  }
+    
 
 }
+    
 
 class TrekApi {
   constructor(ajaxUrl) {
@@ -1362,6 +1471,8 @@ class TrekDatabase {
     this.activeTab = document.querySelector('#trek-db-nav li.is-active');
     // initialize api
     this.api = new TrekApi(settings.ajaxUrl);
+    // print info
+    this.printInfo = settings.printInfo;
     // iterate sheets and initialize models
     this.sheets = settings.sheets
     Object.entries(this.sheets).forEach( ([name, sheet]) => {
@@ -1369,9 +1480,12 @@ class TrekDatabase {
       else sheet.model = new TrekTableModel(name, this.sheets, this.api);
     });
     // initialize buffers, could not be done before all models are constructed
+    console.log(Object.values(this.sheets));
     Object.values(this.sheets).forEach( (sheet) => {
+      console.log('reset',sheet);
       sheet.model.resetBuffer();
     });
+    console.log('done resetting buffers');
     // select default sheet, generate HTML table
     this.selectTab();
 
@@ -1385,8 +1499,10 @@ class TrekDatabase {
       if (this.view !== undefined) this.view.clear();
     }
     const activeSheet = this.sheets[this.activeTab.getAttribute('data-sheet')];
-    if (activeSheet.viewClass !== undefined) this.view = new activeSheet.viewClass(activeSheet.model);
+    const printStylesheet = activeSheet.printStylesheet ? activeSheet.printStylesheet : this.printStylesheet;
+    if (activeSheet.viewClass !== undefined) this.view = new activeSheet.viewClass(activeSheet.model, this.sheets);
     else this.view = new TrekTableView(activeSheet.model, this.sheets);
+    this.view.printInfo = this.printInfo;
   }
 
 }

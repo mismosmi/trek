@@ -66,6 +66,7 @@ class Database extends Page
         $this->addCss('css/fontawesome.min.css');
         $this->addCss('css/fa-solid.min.css');
         $this->addCss('css/trekdb.css');
+        $this->addJs("js/JsBarcode/dist/barcodes/JsBarcode.code128.min.js");
         $this->addJs('js/jquery-3.2.1.min.js');
         $this->addJs('js/trekdb.js');
         
@@ -173,13 +174,30 @@ class Database extends Page
      */
     public function getScript()
     {
-        $tableColumns = '';
+        $sheets = '';
         foreach ($this->dbInfo['order'] as $tableName) {
             //$table = $this->dbInfo['tables'][$tableName];
-            $tableColumns .= 
-                 "      '$tableName': { columns: [\n";
+            $title = $this->dbInfo['tables'][$tableName]['title'];
+            $sheets .= 
+                 "      '$tableName': { title: \"$title\", columns: [\n";
             foreach ($this->getColumns($tableName) as $column) {
                 $js = "";
+                $barcode = "";
+
+                if ($column['class'] === 0) {
+                    switch ($column['name']) {
+                    case 'id':
+                        $column['type'] = 'int';
+                        if (array_key_exists('barcode', $column)) 
+                            $barcode = "           barcode: \"{$column['barcode']}\",\n";
+                        break;
+                    case 'createdate':
+                    case 'modifieddate':
+                        $column['type'] = 'timestamp';
+                        break;
+                    }
+                }
+
                 if ($column['class'] === 2) {
                     $js .= "           run: function(tv) {\n";
                     if (strpos($column['js'], ";") === false) {
@@ -200,30 +218,31 @@ class Database extends Page
                 } else $required = "";
 
                 if ($column['class'] === 3) {
-                    $name = "{$column['table']}_id";
+                    $column['name'] = "{$column['table']}_id";
                     $table = "           table: \"{$column['table']}\",\n";
                 } else {
-                    $name = $column['name'];
                     $table = "";
                 }
 
                 $symbol = $this->getSymbol($column['type']);
-                $tableColumns .=
+                $sheets .=
                     "        {\n"
-                    ."           name: \"{$name}\",\n"
+                    ."           name: \"{$column['name']}\",\n"
                     ."           class: {$column['class']},\n"
                     ."           title: \"{$column['title']}\",\n"
                     ."           type: \"{$column['type']}\",\n"
                     ."           symbol: \"$symbol\",\n"
                     .$table
+                    .$barcode
                     .$required
                     .$js
                     ."        },\n";
             }
-            $tableColumns .= "      ] },\n";
+            $sheets .= "      ] },\n";
         }
 
         $ajaxUrl = HTML_ROOT."php/api.php?db=".$this->dbName;
+        $printStylesheet = HTML_ROOT."css/trekdb_print.css";
 
         return
              "<script>\n"
@@ -231,7 +250,10 @@ class Database extends Page
             ."  Trek = new TrekDatabase({\n"
             ."    ajaxUrl: '$ajaxUrl',\n"
             ."    sheets: {\n"
-            .$tableColumns
+            .$sheets
+            ."    },\n"
+            ."    printInfo: {\n"
+            ."      stylesheet: \"$printStylesheet\"\n"
             ."    }\n"
             ."  });\n"
             ."});\n"

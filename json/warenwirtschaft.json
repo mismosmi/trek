@@ -9,7 +9,8 @@
                 {
                     "name": "id",
                     "title": "Produkt ID",
-                    "class": 0
+                    "class": 0,
+                    "barcode": "ean"
                 },
                 {
                     "name": "category",
@@ -60,7 +61,8 @@
                 {
                     "name": "id",
                     "title": "Projekt ID",
-                    "class": 0
+                    "class": 0,
+                    "barcode": "auto"
                 },
                 {
                     "name": "category",
