@@ -16,8 +16,13 @@ class TrekSimpleUserLock {
     this.lock();
     this.lockButton = document.getElementById('trek-switch-user');
     this.lockButton.addEventListener('click', () => this.lock() );
+
+    const resetTimer = () => {
+      clearTimeout(this.lockTimer);
+      this.lockTimer = setTimeout( () => this.lock() , 900000);
+    } 
+
     document.addEventListener('keyup', (event) => {
-      console.log(event.key, this.input);
       if (this.locked) {
         if (this.activeSuggestion !== undefined) {
           const s = this.activeSuggestion;
@@ -39,7 +44,13 @@ class TrekSimpleUserLock {
               return;
           }
         }
+      } else {
+        resetTimer();
       }
+    });
+
+    document.addEventListener('mousemove', () => {
+      if (!this.locked) resetTimer() 
     });
 
 
@@ -49,8 +60,10 @@ class TrekSimpleUserLock {
   onLock() {}
   onUnlock() {}
 
+
   lock() {
     this.model.sync();
+    clearTimeout(this.lockTimer);
     this.lockSection = document.createElement('section');
     this.lockSection.id = 'trek-user-lock';
     this.lockSection.classList.add('section', 'container');
@@ -125,6 +138,7 @@ class TrekSimpleUserLock {
       document.getElementById('username').textContent = name;
       this.locked = false;
       this.onUnlock();
+      this.lockTimer = setTimeout( () => this.lock() , 900000);
     }
   }
 

@@ -100,9 +100,13 @@ class SqlDb {
                 $query .= "id SERIAL, "
                     ."createdate TIMESTAMP DEFAULT 0, "
                     ."modifieddate TIMESTAMP DEFAULT 0, "
-                    ."createuser TEXT(60) CHARACTER SET utf8 NOT NULL, "
-                    ."modifieduser TEXT(60) CHARACTER SET utf8 NOT NULL, "
                     ."deleted BOOLEAN DEFAULT 0";
+                if ($user) {
+                    $query .= ", createuser TEXT(60) CHARACTER SET utf8 NOT NULL, "
+                        ."modifieduser TEXT(60) CHARACTER SET utf8 NOT NULL";
+                }
+
+
             }
             foreach ($columns as $col) {
                 switch ($col['class']) {

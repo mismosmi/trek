@@ -29,7 +29,8 @@
     height: 0;
     width: 15rem;
 }
-#trek-container div.trek-column.trek-column-timestamp {
+#trek-container div.trek-column.trek-column-timestamp, 
+#trek-container div.trek-column.trek-column-username {
     height: 0;
     width: 10rem;
 }

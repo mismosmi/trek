@@ -193,7 +193,7 @@
                 },
                 {
                     "name": "modifieduser",
-                    "title": "Bearbeitet von",
+                    "title": "von",
                     "class": 0
                 }
             ]

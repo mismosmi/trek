@@ -224,6 +224,10 @@ class Database extends Page
                     case 'modifieddate':
                         $column['type'] = 'timestamp';
                         break;
+                    case 'createuser':
+                    case 'modifieduser':
+                        $column['type'] = 'username';
+                        break;
                     }
                 }
 

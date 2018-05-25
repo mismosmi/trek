@@ -5,9 +5,10 @@
 
 class TrekTableModel {
 
-  constructor(name, sheets, api) {
+  constructor(name, sheets, api, user) {
     this.name = name;
     this.api = api;
+    this.user = user;
     this.columns = sheets[name].columns;
     this[''] = ''; // return empty string if requesting row from other table where id is not specified yet
 
@@ -97,6 +98,20 @@ class TrekTableModel {
         return this.buffer ? this.buffer.modifieddate : '';
       }
     });
+    if (this.user) {
+      Object.defineProperty(this.data, 'modifieduser', {
+        get: () => {
+          if (this.currentId) return this.data[this.currentId].modifieduser;
+          return this.buffer ? this.buffer.modifieduser : '';
+        }
+      });
+      Object.defineProperty(this.data, 'createuser', {
+        get: () => {
+          if (this.currentId) return this.data[this.currentId].createuser;
+          return this.buffer ? this.buffer.createuser : '';
+        }
+      });
+    }
     
     // attach accessors
     // set missing column types
@@ -475,12 +490,18 @@ class TrekTableModel {
     }
   }
   insert(onSuccess, onError) {
+    console.log('insert',this.user);
+    const data = this.getFormData();
+    if (this.user) {
+      data.createuser = this.user.name;
+      data.modifieduser = this.user.name;
+    }
     this.api.xhrRequest(
       {
         operation: 'INSERT', 
         tableName: this.name, 
         lastUpdate: this.lastUpdate.server, 
-        data: this.getFormData()
+        data: data
       },
       (response) => { // onSuccess
         this.lastUpdate = {
@@ -495,13 +516,15 @@ class TrekTableModel {
     );
   }
   alter(id, onSuccess, onError) {
+    const data = this.getFormData();
+    if (this.user) data.modifieduser = this.user.name;
     this.api.xhrRequest(
       {
         operation: 'ALTER',
         tableName: this.name,
         lastUpdate: this.lastUpdate.server,
         row: id,
-        data: this.getFormData()
+        data: data
       },
       (response) => { // onSuccess
         this.lastUpdate = {
@@ -1514,8 +1537,8 @@ class TrekDatabase {
     // iterate sheets and initialize models
     this.sheets = settings.sheets
     Object.entries(this.sheets).forEach( ([name, sheet]) => {
-      if (sheet.modelClass !== undefined) sheet.model = new sheet.modelClass(name, this.sheets, this.api);
-      else sheet.model = new TrekTableModel(name, this.sheets, this.api);
+      if (sheet.modelClass !== undefined) sheet.model = new sheet.modelClass(name, this.sheets, this.api, this.user);
+      else sheet.model = new TrekTableModel(name, this.sheets, this.api, this.user);
     });
     // initialize buffers, could not be done before all models are constructed
     Object.values(this.sheets).forEach( (sheet) => {

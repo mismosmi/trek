@@ -1,0 +1,140 @@
+{
+    "name": "werkzeug",
+    "title": "Werkzeug",
+    "user": "simple",
+    "sheets": {
+        "tool": {
+            "title": "Werkzeug",
+            "columns": [
+                {
+                    "name": "id",
+                    "title": "Werkzeug ID",
+                    "class": 0,
+                    "barcode": "auto"
+                },
+                {
+                    "name": "category",
+                    "title": "Kategorie",
+                    "class": 1,
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "name": "description",
+                    "title": "Bezeichnung",
+                    "class": 1,
+                    "type": "type",
+                    "required": true
+                },
+                {
+                    "name": "notes",
+                    "title": "Notizen",
+                    "class": 1,
+                    "type": "string"
+                }
+            ]
+        },
+        "incoming": {
+            "title": "Eingang",
+            "columns": [
+                {
+                    "table": "tool",
+                    "title": "Werkzeug ID",
+                    "class": 3,
+                    "required": true
+                },
+                {
+                    "name": "toolcategory",
+                    "title": "Kategorie",
+                    "class": 2,
+                    "js": "tv.tool.category",
+                    "type": "string"
+                },
+                {
+                    "name": "toolitem",
+                    "title": "Bezeichnung",
+                    "class": 2,
+                    "js": "tv.tool.description",
+                    "type": "string"
+                },
+                {
+                    "name": "modifieddate",
+                    "title": "Zuletzt bearbeitet",
+                    "class": 0
+                },
+                {
+                    "name": "modifieduser",
+                    "title": "von",
+                    "class": 0
+                },
+                {
+                    "name": "works",
+                    "title": "In Ordnung",
+                    "class": 1,
+                    "type": "bool",
+                    "required": true
+                }
+            ]
+        },
+        "outgoing": {
+            "title": "Ausgang",
+            "columns": [
+                {
+                    "table": "project",
+                    "title": "Projekt ID",
+                    "class": 3,
+                    "required": true
+                },
+                {
+                    "name": "whatproject",
+                    "title": "Projekt",
+                    "class": 2,
+                    "js": "tv.project.what",
+                    "type": "string"
+                },
+                {
+                    "table": "tool",
+                    "title": "Werkzeug ID",
+                    "class": 3,
+                    "required": true
+                },
+                {
+                    "name": "toolcategory",
+                    "title": "Kategorie",
+                    "class": 2,
+                    "js": "tv.tool.category",
+                    "type": "string"
+                },
+                {
+                    "name": "toolitem",
+                    "title": "Bezeichnung",
+                    "class": 2,
+                    "js": "tv.tool.description",
+                    "type": "string"
+                },
+                {
+                    "name": "modifieddate",
+                    "title": "Zuletzt bearbeitet",
+                    "class": 0
+                },
+                {
+                    "name": "modifieduser",
+                    "title": "von",
+                    "class": 0
+                },
+                {
+                    "name": "works",
+                    "title": "In Ordnung",
+                    "class": 1,
+                    "type": "bool",
+                    "required": true
+                }
+            ]
+        }
+    },
+    "order": [
+        "tool",
+        "incoming",
+        "outgoing"
+    ]
+}

@@ -91,8 +91,18 @@ class RestApi extends SqlDb
     private function validateTableKeys($tableName, array $data)
     {
         $dataChecked = [];
+        if (array_key_exists('barcode', $data)) $dataChecked['barcode'] = $data['barcode'];
         foreach ($this->getColumns($tableName) as $col) {
             switch ($col['class']) {
+            case 0: // Meta Column
+                switch ($col['name']) {
+                case "createuser":
+                case "modifieduser":
+                    if (array_key_exists($col['name'], $data)) {
+                        $dataChecked[$col['name']] = $data[$col['name']];
+                    }
+                }
+                break;
             case 1: // Data Column
                 if (array_key_exists($col['name'], $data))
                     $dataChecked[$col['name']] = $data[$col['name']];
@@ -149,7 +159,7 @@ class RestApi extends SqlDb
         switch ($postData['operation']) {
         case 'INSERT':
             $opRet = $this->dbInsert(
-                $postData['tableName'], 
+                $postData['tableName'],
                 $this->validateTableKeys($postData['tableName'], $postData['data'])
             );
             break;
@@ -171,7 +181,7 @@ class RestApi extends SqlDb
         $time = date('Y-m-d G:i:s');
         if ($postData['operation'] === "SELECT" || $opRet['success']) {
             $thisTable = ['name' => $postData['tableName'], 'columns' => []];
-            $columns = [];
+            $columns = $this->dbInfo['user'] ? ['createuser', 'modifieduser'] : [];
             foreach ($this->getColumns($postData['tableName']) as $col) {
                 switch ($col['class']) {
                 case 1: // Data Column
@@ -179,6 +189,7 @@ class RestApi extends SqlDb
                     break;
                 case 3: // Foreign key
                     $columns[] = "{$col['table']}_id";
+                    break;
                 }
             }
             $where = empty($postData['lastUpdate']) 

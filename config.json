@@ -26,13 +26,19 @@
             "type": "database",
             "path": "json/warenwirtschaft.json",
             "title": "Warenwirtschaft"
+        },
+        "werkzeug": {
+            "type": "database",
+            "path": "json/werkzeug.json",
+            "title": "Werkzeug"
         }
     },
 
     "order": [
         "home",
         "schemadb",
-        "warenwirtschaft"
+        "warenwirtschaft",
+        "werkzeug"
     ],
 
     "database": {
