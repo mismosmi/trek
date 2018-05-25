@@ -6,7 +6,6 @@
 class TrekTableModel {
 
   constructor(name, sheets, api) {
-    console.log('construct',name);
     this.name = name;
     this.api = api;
     this.columns = sheets[name].columns;
@@ -98,6 +97,7 @@ class TrekTableModel {
         return this.buffer ? this.buffer.modifieddate : '';
       }
     });
+    
     // attach accessors
     // set missing column types
     this.columns.forEach( (col) => {
@@ -409,7 +409,6 @@ class TrekTableModel {
   }
 
   resetBuffer() {
-    console.log('resetBuffer', this.defaultRow);
     this.buffer = Object.assign({}, this.defaultRow);
     this.run(this.buffer);
     this.currentId = '';
@@ -433,6 +432,10 @@ class TrekTableModel {
       }
     });
     return data;
+  }
+
+  find(findFn) {
+    return Object.values(this.data).filter( val => typeof val === 'object' ).find(findFn);
   }
 
   // api requests
@@ -730,6 +733,9 @@ class TrekSmartInput {
   }
   removeAttribute(identifier) {
     this.input.removeAttribute(identifier);
+  }
+  focus() {
+    this.input.focus();
   }
 
     
@@ -1397,7 +1403,6 @@ class TrekTableView {
 
     const barcodeSpace = document.createElement('div');
     if (hasBarcode) {
-      console.log('hasBarcode');
       this.container.appendChild(barcodeSpace);
     }
 
@@ -1410,7 +1415,6 @@ class TrekTableView {
         barcode.id = 'barcode';
         barcodeSpace.appendChild(barcode);
         const code = row.barcode ? row.barcode : this.model.name + ("0000000000000" + row.id).slice(-13);
-        console.log('hasBc:',hasBarcode,'code:',code);
         JsBarcode('#barcode', code , {
           format: row.barcode ? 'ean' : 'code128',
           width: 1
@@ -1497,6 +1501,16 @@ class TrekDatabase {
     this.api = new TrekApi(settings.ajaxUrl);
     // print info
     this.printInfo = settings.printInfo;
+    // user lock
+    if (settings.user === 'simple') {
+      this.user = {};
+      this.lock = new TrekSimpleUserLock(this.user, this.api);
+      this.lock.onUnlock = () => this.selectTab();
+      this.lock.onLock = () => {
+        if (this.view !== undefined) this.view.clear();
+        this.view = undefined;
+      };
+    }
     // iterate sheets and initialize models
     this.sheets = settings.sheets
     Object.entries(this.sheets).forEach( ([name, sheet]) => {
@@ -1504,14 +1518,9 @@ class TrekDatabase {
       else sheet.model = new TrekTableModel(name, this.sheets, this.api);
     });
     // initialize buffers, could not be done before all models are constructed
-    console.log(Object.values(this.sheets));
     Object.values(this.sheets).forEach( (sheet) => {
-      console.log('reset',sheet);
       sheet.model.resetBuffer();
     });
-    console.log('done resetting buffers');
-    // select default sheet, generate HTML table
-    this.selectTab();
 
   }
 

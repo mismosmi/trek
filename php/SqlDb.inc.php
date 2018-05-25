@@ -78,9 +78,11 @@ class SqlDb {
      *
      * @param string $name       table name
      * @param array $columns    table columns
+     * @param string $user      if and which type of user control to implement
+     *                          currently supports 'simple'
      * @return array success-status and error message
      */
-    public function dbCreateTable($name, array $columns = [])
+    public function dbCreateTable($name, array $columns = [], $user = '')
     {
         $connStatus = $this->dbConnect();
         if (!$connStatus['success']) return $connStatus;
@@ -98,6 +100,8 @@ class SqlDb {
                 $query .= "id SERIAL, "
                     ."createdate TIMESTAMP DEFAULT 0, "
                     ."modifieddate TIMESTAMP DEFAULT 0, "
+                    ."createuser TEXT(60) CHARACTER SET utf8 NOT NULL, "
+                    ."modifieduser TEXT(60) CHARACTER SET utf8 NOT NULL, "
                     ."deleted BOOLEAN DEFAULT 0";
             }
             foreach ($columns as $col) {
@@ -124,6 +128,9 @@ class SqlDb {
                         break;
                     case "bool":
                         $col['type'] = "BOOLEAN";
+                        break;
+                    case "username":
+                        $col['type'] = "TEXT(60) CHARACTER SET utf8";
                         break;
                     }
                     $query .= ", {$col['name']} {$col['type']}"; 
@@ -231,7 +238,7 @@ class SqlDb {
                 $stmt->bindValue(":".$name, $val);
             }
             $stmt->execute();
-            return ['success' => True];
+            return ['success' => True, 'query' => $stmt->queryString."\n"];
         } catch (PDOException $e) {
             return ['success' => False, 'errormsg' =>
             "Error inserting row: ".$e->getMessage()];
@@ -355,7 +362,7 @@ class SqlDb {
                 }
             }
                 
-            return ['success' => True, 'data' => $data];
+            return ['success' => True, 'data' => $data, 'query' => $stmt->queryString];
         } catch (PDOException $e) {
             return ['success' => False, 'errormsg' =>
                 "dbSelect: Error fetching data from table $table: ".$e->getMessage()];

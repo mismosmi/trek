@@ -37,10 +37,11 @@
     height: 0;
     width: 14rem;
 }
-
-    
-
-
 #trek-container tbody {
     min-height: 1px;
 }
+
+#trek-db-controls .tag {
+    margin-right: 0.5rem;
+}
+

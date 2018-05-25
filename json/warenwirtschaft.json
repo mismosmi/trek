@@ -1,8 +1,8 @@
 {
     "name": "warenwirtschaft",
     "title": "Warenwirtschaft",
-    "users": true,
-    "tables": {
+    "user": "simple",
+    "sheets": {
         "product": {
             "title": "Produkte",
             "columns": [

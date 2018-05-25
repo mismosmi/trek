@@ -11,17 +11,14 @@ echo $db->getHead();
 ?>
 <body>
 <?php echo $db->getNavbar(); ?>
-<section class="section">
+<section class="section" id="trek-title-section">
  <div>
   <h1 class="title"><?php echo $db->getTitle(); ?></h1>
  </div>
 </section>
-<section class="section">
- <div class="container is-clearfix">
-  <div class="buttons has-addons is-pulled-right">
-   <span id="trek-print-button" class="button is-link" disabled>Print</span>
-   <span id="trek-edit-button" class="button is-primary" disabled>Edit</span>
-  </div>
+<section class="section" id="trek-content-section">
+ <div class="container is-clearfix" id="trek-db-controls">
+<?php echo $db->getDbControls(); ?>
 <?php echo $db->getDbNav(); ?>
  </div>
  <section class="hero">

@@ -55,9 +55,29 @@ class RestApi extends SqlDb
      */
     private function getColumns($tableName)
     {
-        if (array_key_exists("column_reference", $this->dbInfo['tables'][$tableName])) 
-            return $this->dbInfo['tables'][$this->dbInfo['tables'][$tableName]['column_reference']]['columns'];
-        return $this->dbInfo['tables'][$tableName]['columns'];
+        if ($tableName === "trek_user") return [
+            [
+                'name' => "id",
+                'class' => 0
+            ],
+            [
+                'name' => "createdate",
+                'class' => 0
+            ],
+            [
+                'name' => "modifieddate",
+                'class' => 0
+            ],
+            [
+                'name' => "username",
+                'class' => 1,
+                'type' => "username"
+            ]
+        ];
+
+        if (array_key_exists("column_reference", $this->dbInfo['sheets'][$tableName])) 
+            return $this->dbInfo['sheets'][$this->dbInfo['sheets'][$tableName]['column_reference']]['columns'];
+        return $this->dbInfo['sheets'][$tableName]['columns'];
     }
 
         
@@ -125,23 +145,23 @@ class RestApi extends SqlDb
      */
     public function processRequest(array $postData)
     {
-        $ret = [];
+        $opRet = [];
         switch ($postData['operation']) {
         case 'INSERT':
-            $ret = $this->dbInsert(
+            $opRet = $this->dbInsert(
                 $postData['tableName'], 
                 $this->validateTableKeys($postData['tableName'], $postData['data'])
             );
             break;
         case 'DELETE':
-            $ret = $this->dbAlter(
+            $opRet = $this->dbAlter(
                 $postData['tableName'], 
                 $postData['row'], 
                 ['deleted' => true]
             );
             break;
         case 'ALTER':
-            $ret = $this->dbAlter(
+            $opRet = $this->dbAlter(
                 $postData['tableName'], 
                 $postData['row'], 
                 $this->validateTableKeys($postData['tableName'], $postData['data'])
@@ -149,7 +169,7 @@ class RestApi extends SqlDb
             break;
         }
         $time = date('Y-m-d G:i:s');
-        if ($postData['operation'] === "SELECT" || $ret['success']) {
+        if ($postData['operation'] === "SELECT" || $opRet['success']) {
             $thisTable = ['name' => $postData['tableName'], 'columns' => []];
             $columns = [];
             foreach ($this->getColumns($postData['tableName']) as $col) {
@@ -168,6 +188,7 @@ class RestApi extends SqlDb
             $ret = $this->dbSelect($postData['tableName'], $columns, $where);
         }
         $ret['time'] = $time;
+        $ret['opData'] = $opRet;
         return json_encode($ret);
     }
 

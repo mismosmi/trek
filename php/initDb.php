@@ -19,11 +19,29 @@ $db = new SqlDb($config['database']);
 
 $dbInfo = json_decode(file_get_contents(PHP_ROOT.$config['pages'][$argv[1]]['path']), true);
 
-foreach ($dbInfo['tables'] as $name => $table) {
+$user = '';
+if (array_key_exists("user", $dbInfo)) {
+    switch ($dbInfo['user']) {
+    case "simple":
+        echo $db->dbCreateTable('trek_user', [[
+            'name' => "username",
+            'class' => 1,
+            'type' => "username",
+            'required' => true
+        ]]);
+        break;
+    }
+    $user = $dbInfo['user'];
+}
+
+
+
+foreach ($dbInfo['sheets'] as $name => $table) {
     $columns = array_key_exists("column_reference", $table) 
-        ? $dbInfo['tables'][$table['column_reference']]['columns']
+        ? $dbInfo['sheets'][$table['column_reference']]['columns']
         : $table['columns'];
-    echo $db->dbCreateTable($name, $columns)."\n";
+    
+    echo $db->dbCreateTable($name, $columns, $user)."\n";
 }
 
 

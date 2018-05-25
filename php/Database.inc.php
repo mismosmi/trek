@@ -58,7 +58,7 @@ class Database extends Page
         $this->dbName = $dbName;
         parent::__construct(NULL, $favicon, $configFile);
         $this->dbInfo = json_decode(file_get_contents(PHP_ROOT.$this->config['pages'][$dbName]['path']), true);
-        $this->title = $this->dbInfo['title'].' | '.$this->dbInfo['tables'][$activeTable]['title'];
+        $this->title = $this->dbInfo['title'].' | '.$this->dbInfo['sheets'][$activeTable]['title'];
 
         $this->activeTable = $activeTable ?: $this->dbInfo['order'][0];
 
@@ -68,6 +68,14 @@ class Database extends Page
         $this->addJs("js/JsBarcode/dist/JsBarcode.all.min.js");
         $this->addJs('js/jquery-3.2.1.min.js');
         $this->addJs('js/trekdb.js');
+        if (array_key_exists('user', $this->dbInfo)) {
+            switch ($this->dbInfo['user']) {
+            case 'simple':
+                $this->addJs('js/treksimpleuserlock.js');
+                $this->addCss('css/trekuserlock.css');
+                break;
+            }
+        }
         
     }
 
@@ -87,9 +95,9 @@ class Database extends Page
      */
     private function getColumns($tableName)
     {
-        if (array_key_exists("column_reference", $this->dbInfo['tables'][$tableName])) 
-            return $this->dbInfo['tables'][$this->dbInfo['tables'][$tableName]['column_reference']]['columns'];
-        return $this->dbInfo['tables'][$tableName]['columns'];
+        if (array_key_exists("column_reference", $this->dbInfo['sheets'][$tableName])) 
+            return $this->dbInfo['sheets'][$this->dbInfo['sheets'][$tableName]['column_reference']]['columns'];
+        return $this->dbInfo['sheets'][$tableName]['columns'];
     }
 
     /**
@@ -110,7 +118,7 @@ class Database extends Page
     {
         $tabs = "";
         foreach ($this->dbInfo['order'] as $name) {
-            $data = $this->dbInfo['tables'][$name];
+            $data = $this->dbInfo['sheets'][$name];
             $active = $name == $this->activeTable ? " class=\"is-active\"" : "";
             $tabs .= "  <li$active data-sheet=\"$name\"><a onclick=\"Trek.selectTab(this)\">{$data['title']}</a></li>\n";
         }
@@ -121,6 +129,20 @@ class Database extends Page
             ." </ul>\n"
             ."</div>\n";
     }
+
+    public function getDbControls() 
+    {
+        $dbControls = "<div class=\"is-pulled-right\">";
+        if (array_key_exists('user', $this->dbInfo)) {
+            $dbControls .= "<span class=\"tag is-success is-medium is-pulled-left\"><span id=\"username\"></span><button id=\"trek-switch-user\" class=\"delete is-small\"></button></span>";
+        }
+        $dbControls .= "<div class=\"buttons has-addons\"><span id=\"trek-print-button\" class=\"button is-link\" disabled>Print</span><span id=\"trek-edit-button\" class=\"button is-primary\" disabled>Edit</span></div>";
+        $dbControls .= "</div>";
+        return $dbControls;
+    }
+
+
+
 
     /**
      * get matching html unit symbol for sqlType
@@ -184,7 +206,7 @@ class Database extends Page
         $sheets = '';
         foreach ($this->dbInfo['order'] as $tableName) {
             //$table = $this->dbInfo['tables'][$tableName];
-            $title = $this->dbInfo['tables'][$tableName]['title'];
+            $title = $this->dbInfo['sheets'][$tableName]['title'];
             $sheets .= 
                  "      '$tableName': { title: \"$title\", columns: [\n";
             foreach ($this->getColumns($tableName) as $column) {
@@ -255,6 +277,7 @@ class Database extends Page
 
         $ajaxUrl = HTML_ROOT."php/api.php?db=".$this->dbName;
         $printStylesheet = HTML_ROOT."css/trekdb_print.css";
+        $user = array_key_exists('user', $this->dbInfo) ? "    user: \"{$this->dbInfo['user']}\",\n" : "";
 
         return
              "<script>\n"
@@ -262,6 +285,7 @@ class Database extends Page
             ."  Trek = new TrekDatabase({\n"
             ."    ajaxUrl: \"$ajaxUrl\",\n"
             ."    title: \"{$this->dbInfo['title']}\",\n"
+            .$user
             ."    sheets: {\n"
             .$sheets
             ."    },\n"
