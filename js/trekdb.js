@@ -178,8 +178,8 @@ class TrekTableModel {
       },
       set: (value) => {
         if (value.length === 13 && this.eanBarcode) this.eanBarcode(parseInt(value));
-        else if (value.startsWith(this.name + '01trek')) this.buffer.id = parseInt(value.slice(value.length - 14));
-        else this.buffer[value.slice(0,value.indexOf('01trek')) + '_id'] = parseInt(value.slice(value.length - 14));
+        else if (value.startsWith(this.name)) this.buffer.id = parseInt(value.slice(value.length - 13));
+        else this.buffer[value.slice(0,-13) + '_id'] = parseInt(value.slice(value.length - 13));
       }
     });
 
@@ -748,17 +748,19 @@ class TrekTableView {
     this.editMode = false;
     this.editButton = document.getElementById('trek-edit-button');
     this.editButton.removeAttribute('disabled');
-    this.editButton.addEventListener('click', () => {
+    const editFn = () => {
       // toggle edit mode
       if (this.editMode) {
         this.exitEditMode();  
       } else {
         this.enterEditMode();
       }
-    });
+    };
+    this.editButton.addEventListener('click', editFn);
     this.printButton = document.getElementById('trek-print-button');
     this.printButton.removeAttribute('disabled');
-    this.printButton.addEventListener('click', () => this.print() );
+    const printFn = () => this.print();
+    this.printButton.addEventListener('click', printFn );
 
 
     // generate and save newRow 
@@ -936,6 +938,8 @@ class TrekTableView {
     
     this.clear = () => {
       this.editButton.setAttribute('disabled', true);
+      this.editButton.removeEventListener('click', editFn);
+      this.printButton.removeEventListener('click', printFn);
       this.model.clear();
       document.removeEventListener('keyup', keyAction);
     }
@@ -1351,8 +1355,9 @@ class TrekTableView {
   print() {
     if (this.printWindow !== undefined) this.printWindow.close();
     const title = this.sheets[this.model.name].title;
-    this.printWindow = window.open('', title);
+    this.printWindow = window.open('', 'tab');
     const d = this.printWindow.document;
+    d.title = title;
     const printHead = d.querySelector('head');
     // concatenate absolute url to stylesheet and add to print page
     const currentUrl = new URL(document.location.href);
@@ -1377,8 +1382,6 @@ class TrekTableView {
     // create table
     const table = d.createElement('div');
     table.id = 'table';
-    const head = d.createElement('div');
-    head.classList.add('thead');
     // add space to generate barcodes
     const hasBarcode = this.model.columns.find( col => col.name === 'id' ).barcode === 'auto';
 
@@ -1393,33 +1396,42 @@ class TrekTableView {
       tr.classList.add('tr');
       // generate barcode
       if (hasBarcode) {
-        console.log('generating barcode for row', row.id);
         const barcode = document.createElement('img');
         barcode.id = 'barcode';
         barcodeSpace.appendChild(barcode);
-        JsBarcode('#barcode', 'abc12345678', {
-          format: 'code128'
+        const code = this.model.name + ("0000000000000" + row.id).slice(-13);
+        JsBarcode('#barcode', code , {
+          format: 'code128',
+          width: 1
         });
-        const barcodeTd = document.createElement('div');
+        const barcodeTd = document.createElement('span');
         barcodeTd.classList.add('td-barcode');
-        barcodeTd.appendChild(barcode);
+        //barcodeTd.appendChild(barcode);
         barcode.id = '';
-        tr.appendChild(barcodeTd);
+        barcode.classList.add('barcode');
+        tr.appendChild(barcode);
       }
+      const p = document.createElement('p');
+      p.classList.add('p');
       // generate rest of column
       this.forEachColumn( (col) => {
-        const td = d.createElement('span');
-        td.classList.add('td', 'td-' + col.type);
-        const label = d.createElement('span');
-        label.classList.add('label');
-        label.textContent = col.title;
-        td.appendChild(label);
-        const content = d.createElement('span');
-        content.textContent = this.getDisplayFormat(col, row);
-        if (col.symbol) content.innerHTML += col.symbol;
-        td.appendChild(content);
-        tr.appendChild(td);
+        const val = this.getDisplayFormat(col, row);
+        if (val) {
+          const td = d.createElement('span');
+          td.classList.add('td', 'td-' + col.type);
+          const label = d.createElement('div');
+          label.classList.add('label');
+          label.textContent = col.title;
+          td.appendChild(label);
+          const content = d.createElement('span');
+          content.classList.add('content');
+          content.textContent = val;
+          if (col.symbol) content.innerHTML += col.symbol;
+          td.appendChild(content);
+          p.appendChild(td);
+        }
       });
+      tr.appendChild(p);
       table.appendChild(tr);
     });
     printBody.appendChild(table);

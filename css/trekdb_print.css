@@ -3,3 +3,35 @@ body {
     width: 21cm;
     padding: 2cm;
 }
+
+#table {
+}
+#table .tr {
+    border: 1px black dashed;
+    min-height: 152;
+    padding: 5px;
+    float: none;
+    margin: 1rem 0;
+}
+#table .barcode {
+    float: left;
+}
+#table .p {
+    padding: 10px;
+}
+#table .td {
+    display: inline-block;
+    border: 1px solid black;
+    border-radius: 3px;
+    margin: 0.3rem;
+}
+#table .td-string {
+}
+#table .td-timestamp {
+}
+#table .td .label {
+    background-color: grey;
+    font-size: 0.6rem;
+    /*display: block;*/
+}
+
