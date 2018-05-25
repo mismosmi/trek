@@ -109,6 +109,7 @@ class SqlDb {
                             $query .= ", barcode BIGINT(13) UNSIGNED";
                         }
                     }
+                    break;
                 case 1: // Data Column
                     switch ($col['type']) {
                     case "euro":

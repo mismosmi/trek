@@ -65,7 +65,7 @@ class Database extends Page
         $this->addCss('css/fontawesome.min.css');
         $this->addCss('css/fa-solid.min.css');
         $this->addCss('css/trekdb.css');
-        $this->addJs("js/JsBarcode/dist/barcodes/JsBarcode.code128.min.js");
+        $this->addJs("js/JsBarcode/dist/JsBarcode.all.min.js");
         $this->addJs('js/jquery-3.2.1.min.js');
         $this->addJs('js/trekdb.js');
         
@@ -205,6 +205,10 @@ class Database extends Page
                     }
                 }
 
+                $default = ($column['class'] === 1 && array_key_exists('default', $column))
+                    ? "           default: \"{$column['default']}\"\n,"
+                    : "";
+
                 if ($column['class'] === 2) {
                     $js .= "           run: function(tv) {\n";
                     if (strpos($column['js'], ";") === false) {
@@ -242,6 +246,7 @@ class Database extends Page
                     .$table
                     .$barcode
                     .$required
+                    .$default
                     .$js
                     ."        },\n";
             }

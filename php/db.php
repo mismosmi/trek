@@ -17,17 +17,17 @@ echo $db->getHead();
  </div>
 </section>
 <section class="section">
- <div class="container is-fluid is-clearfix">
+ <div class="container is-clearfix">
   <div class="buttons has-addons is-pulled-right">
    <span id="trek-print-button" class="button is-link" disabled>Print</span>
    <span id="trek-edit-button" class="button is-primary" disabled>Edit</span>
   </div>
 <?php echo $db->getDbNav(); ?>
  </div>
- <div class="container is-fluid">
-  <div id="trek-container">
+ <section class="hero">
+  <div class="hero-body" id="trek-container">
   </div>
- </div>
+ </section>
 </section>
 <?php echo $db->getScript(); ?>
 </body>

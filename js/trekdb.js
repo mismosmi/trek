@@ -543,16 +543,28 @@ class TrekSmartInput {
     this.input = document.createElement('input');
     this.input.classList.add('input');
     this.input.type = 'text';
-    this.isValid = !this.column.required || value !== '';
+    this.input.value = value;
     this.input.placeholder = column.title;
     this.input.addEventListener('input', () => this.update());
     this.input.addEventListener('click', () => this.input.select());
-    target.appendChild(this.input);
+    this.isValid = !this.column.required || value !== '';
     if (
       column.type === 'int' || 
       column.type === 'euro' || 
       column.type === 'float'
     ) this.input.classList.add('has-text-right');
+
+    const control = document.createElement('div');
+    control.classList.add('control');
+    control.appendChild(this.input);
+    if (column.symbol) {
+      control.classList.add('has-icons-right');
+      const span = document.createElement('span');
+      span.classList.add('icon', 'is-right');
+      span.innerHTML = column.symbol;
+      control.appendChild(span);
+    } 
+    target.appendChild(control);
 
     // suggestion system
     let makeSuggestion = false;
@@ -712,6 +724,15 @@ class TrekSmartInput {
     // callback
     this.onUpdate(this.input.value);
   }
+
+  setAttribute(identifier, value) {
+    this.input.setAttribute(identifier, value);
+  }
+  removeAttribute(identifier) {
+    this.input.removeAttribute(identifier);
+  }
+
+    
 }
   
 
@@ -728,16 +749,6 @@ class TrekTableView {
     this.table.id = "#trek-table";
     this.table.classList.add('table', 'is-narrow');
     this.container.appendChild(this.table);
-    //const colgroup = document.createElement('colgroup');
-    //this.forEachColumn( (column) => {
-    //  const col = document.createElement('col');
-    //  if (column.type) col.classList.add('column-' + column.type);
-    //  colgroup.appendChild(col);
-    //});
-    //const controlCol = document.createElement('col');
-    //controlCol.classList.add('column-control');
-    //colgroup.appendChild(controlCol);
-    //this.table.appendChild(colgroup);
 
     this.head = document.createElement('thead');
     this.table.appendChild(this.head);
@@ -1151,11 +1162,6 @@ class TrekTableView {
     // loop columns
     this.forEachColumn( (col) => {
       const td = document.createElement('td');
-      //const spacer = document.createElement('div');
-      //spacer.innerHTML = '&nbsp;';
-      //spacer.classList.add('trek-row-formrow');
-      //td.appendChild(spacer);
-      //td.colSpan = this.getColSpan(col);
       td.classList.add('control');
       if (col.type === 'int' || col.type === 'float' || col.type === 'euro') {
         td.classList.add('has-text-right');
@@ -1175,7 +1181,7 @@ class TrekTableView {
             td, // target
             this.model // suggestionModel
           );
-          input.input.setAttribute('tabindex', 1);
+          input.setAttribute('tabindex', 1);
           input.onUpdate = (value) => {
             this.model.data[col.name] = value;
             tr.validate()
@@ -1195,7 +1201,7 @@ class TrekTableView {
             td, // target
             this.sheets[col.table].model // suggestionModel
           );
-          input.input.setAttribute('tabindex', 1);
+          input.setAttribute('tabindex', 1);
           input.onUpdate = (value) => {
             this.model.data[col.name] = value;
             tr.validate()
@@ -1209,12 +1215,16 @@ class TrekTableView {
           tr.inputs.push(input);
           break;
         default:
-          td.innerHTML += `<div class="trek-row-formrow">${this.getDisplayFormat(col)}</div>`;
-      }
-      if (col.symbol) {
-        const symbolspan = document.createElement('span');
-        symbolspan.innerHTML = ' ' + col.symbol;
-        td.appendChild(symbolspan);
+          const spacer = document.createElement('div');
+          spacer.classList.add('trek-row-formrow');
+          spacer.innerHTML += this.getDisplayFormat(col);
+          spacer.style.paddingTop = '0.6em';
+          if (col.symbol) {
+            const symbolspan = document.createElement('span');
+            symbolspan.innerHTML = ' ' + col.symbol;
+            spacer.appendChild(symbolspan);
+          }
+          td.appendChild(spacer);
       }
     });
 
@@ -1383,7 +1393,7 @@ class TrekTableView {
     const table = d.createElement('div');
     table.id = 'table';
     // add space to generate barcodes
-    const hasBarcode = this.model.columns.find( col => col.name === 'id' ).barcode === 'auto';
+    const hasBarcode = this.model.columns.find( col => col.name === 'id' ).barcode;
 
     const barcodeSpace = document.createElement('div');
     if (hasBarcode) {
@@ -1399,9 +1409,10 @@ class TrekTableView {
         const barcode = document.createElement('img');
         barcode.id = 'barcode';
         barcodeSpace.appendChild(barcode);
-        const code = this.model.name + ("0000000000000" + row.id).slice(-13);
+        const code = row.barcode ? row.barcode : this.model.name + ("0000000000000" + row.id).slice(-13);
+        console.log('hasBc:',hasBarcode,'code:',code);
         JsBarcode('#barcode', code , {
-          format: 'code128',
+          format: row.barcode ? 'ean' : 'code128',
           width: 1
         });
         const barcodeTd = document.createElement('span');
