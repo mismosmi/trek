@@ -1479,6 +1479,7 @@ class TrekApi {
 class TrekDatabase {
 
   constructor(settings) {
+    this.title = settings.title;
     // find active tab to reduce DOM calls for tab switching
     this.activeTab = document.querySelector('#trek-db-nav li.is-active');
     // initialize api
@@ -1511,6 +1512,7 @@ class TrekDatabase {
       if (this.view !== undefined) this.view.clear();
     }
     const activeSheet = this.sheets[this.activeTab.getAttribute('data-sheet')];
+    document.title = `${this.title} | ${activeSheet.title}`;
     const printStylesheet = activeSheet.printStylesheet ? activeSheet.printStylesheet : this.printStylesheet;
     if (activeSheet.viewClass !== undefined) this.view = new activeSheet.viewClass(activeSheet.model, this.sheets);
     else this.view = new TrekTableView(activeSheet.model, this.sheets);

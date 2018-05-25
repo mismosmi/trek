@@ -43,7 +43,6 @@ class Database extends Page
     * passes parameters to parent constructor and adds table.css and table.js
     *
     * @param string $name       unique database name for (future) sql table-prefix
-    * @param string $title      <title>config->title | $title</title>
     * @param string $favicon    set page-specific favicon, defaults to setting
     *                           in config.php
     * @param string $configFile use special config.php, mainly for testing
@@ -51,15 +50,15 @@ class Database extends Page
     */
     public function __construct(
         $dbName,
-        $title = '',
         $favicon = '',
         $configFile = '',
         $activeTable = ''
     ) 
     {
         $this->dbName = $dbName;
-        parent::__construct($title, $favicon, $configFile);
+        parent::__construct(NULL, $favicon, $configFile);
         $this->dbInfo = json_decode(file_get_contents(PHP_ROOT.$this->config['pages'][$dbName]['path']), true);
+        $this->title = $this->dbInfo['title'].' | '.$this->dbInfo['tables'][$activeTable]['title'];
 
         $this->activeTable = $activeTable ?: $this->dbInfo['order'][0];
 
@@ -70,6 +69,14 @@ class Database extends Page
         $this->addJs('js/jquery-3.2.1.min.js');
         $this->addJs('js/trekdb.js');
         
+    }
+
+    /**
+     * return Database Title
+     */
+    public function getTitle() 
+    {
+        return $this->dbInfo['title'];
     }
 
     /**
@@ -248,7 +255,8 @@ class Database extends Page
              "<script>\n"
             ."document.addEventListener('DOMContentLoaded', () => {\n"
             ."  Trek = new TrekDatabase({\n"
-            ."    ajaxUrl: '$ajaxUrl',\n"
+            ."    ajaxUrl: \"$ajaxUrl\",\n"
+            ."    title: \"{$this->dbInfo['title']}\",\n"
             ."    sheets: {\n"
             .$sheets
             ."    },\n"

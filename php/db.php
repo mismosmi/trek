@@ -6,14 +6,14 @@ define('HTML_ROOT', '../');
 define('HTML_FILE', basename(__FILE__));
 require_once(PHP_ROOT.'php/Database.inc.php');
 $activeTable = array_key_exists('table', $_GET) ? $_GET['table'] : '';
-$db = new Database($_GET['db'], '', '', '', $activeTable);
+$db = new Database($_GET['db'], '', '', $activeTable);
 echo $db->getHead();
 ?>
 <body>
 <?php echo $db->getNavbar(); ?>
 <section class="section">
  <div>
-  <h1 class="title"><?php echo $db->title; ?></h1>
+  <h1 class="title"><?php echo $db->getTitle(); ?></h1>
  </div>
 </section>
 <section class="section">
