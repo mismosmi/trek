@@ -204,8 +204,7 @@ class Database extends Page
     public function getScript()
     {
         $sheets = '';
-        foreach ($this->dbInfo['order'] as $tableName) {
-            //$table = $this->dbInfo['tables'][$tableName];
+        foreach ($this->dbInfo['sheets'] as $tableName => $sheet) {
             $title = $this->dbInfo['sheets'][$tableName]['title'];
             $sheets .= 
                  "      '$tableName': { title: \"$title\", columns: [\n";

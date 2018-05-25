@@ -172,7 +172,7 @@ class TrekTableModel {
           });
           Object.defineProperty(this.data, col.table, {
             get: () => {
-              //console.log('get table', col.table,' from ',sheets,', currentId',this.currentId, 'data', this.data);
+              console.log('get table', col.table,' from ',sheets,', currentId',this.currentId, 'data', this.data);
               if (this.currentId) return sheets[col.table].model.at(this.data[this.currentId][col.name]);
               return sheets[col.table].model.at(this.buffer[col.name]);
             }
@@ -1544,6 +1544,8 @@ class TrekDatabase {
     Object.values(this.sheets).forEach( (sheet) => {
       sheet.model.resetBuffer();
     });
+
+    if (!settings.user) this.selectTab();
 
   }
 

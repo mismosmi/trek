@@ -2,7 +2,7 @@
     "name": "schemadb",
     "title": "Schema Database",
     "users": false,
-    "tables": {
+    "sheets": {
         "schematable": {
             "title": "Schema",
             "columns": [

@@ -37,6 +37,7 @@ if (array_key_exists("user", $dbInfo)) {
 
 
 foreach ($dbInfo['sheets'] as $name => $table) {
+    if (array_key_exists("sheet_reference", $table)) continue;
     $columns = array_key_exists("column_reference", $table) 
         ? $dbInfo['sheets'][$table['column_reference']]['columns']
         : $table['columns'];

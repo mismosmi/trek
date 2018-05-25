@@ -3,6 +3,55 @@
     "title": "Werkzeug",
     "user": "simple",
     "sheets": {
+        "project": {
+            "title": "Projekte",
+            "columns": [
+                {
+                    "name": "id",
+                    "title": "Projekt ID",
+                    "class": 0,
+                    "barcode": "auto"
+                },
+                {
+                    "name": "category",
+                    "title": "Kategorie",
+                    "class": 1,
+                    "type": "string"
+                },
+                {
+                    "name": "zone",
+                    "title": "Zone",
+                    "class": 1,
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "name": "what",
+                    "title": "Projektdefinition",
+                    "class": 1,
+                    "type": "string",
+                    "required": true
+                },
+                {
+                    "name": "department",
+                    "title": "Department/Team",
+                    "class": 1,
+                    "type": "string"
+                },
+                {
+                    "name": "responsibility",
+                    "title": "Verantwortliche Person",
+                    "class": 1,
+                    "type": "string"
+                },
+                {
+                    "name": "notes",
+                    "title": "Notizen",
+                    "class": 1,
+                    "type": "string"
+                }
+            ]
+        },
         "tool": {
             "title": "Werkzeug",
             "columns": [
@@ -23,7 +72,7 @@
                     "name": "description",
                     "title": "Bezeichnung",
                     "class": 1,
-                    "type": "type",
+                    "type": "string",
                     "required": true
                 },
                 {
@@ -34,7 +83,7 @@
                 }
             ]
         },
-        "incoming": {
+        "tool_incoming": {
             "title": "Eingang",
             "columns": [
                 {
@@ -58,6 +107,19 @@
                     "type": "string"
                 },
                 {
+                    "name": "works",
+                    "title": "In Ordnung",
+                    "class": 1,
+                    "type": "bool",
+                    "required": true
+                },
+                {
+                    "name": "notes",
+                    "title": "Notizen",
+                    "class": 1,
+                    "type": "string"
+                },
+                {
                     "name": "modifieddate",
                     "title": "Zuletzt bearbeitet",
                     "class": 0
@@ -66,17 +128,10 @@
                     "name": "modifieduser",
                     "title": "von",
                     "class": 0
-                },
-                {
-                    "name": "works",
-                    "title": "In Ordnung",
-                    "class": 1,
-                    "type": "bool",
-                    "required": true
                 }
             ]
         },
-        "outgoing": {
+        "tool_outgoing": {
             "title": "Ausgang",
             "columns": [
                 {
@@ -113,6 +168,19 @@
                     "type": "string"
                 },
                 {
+                    "name": "works",
+                    "title": "In Ordnung",
+                    "class": 1,
+                    "type": "bool",
+                    "required": true
+                },
+                {
+                    "name": "notes",
+                    "title": "Notizen",
+                    "class": 1,
+                    "type": "string"
+                },
+                {
                     "name": "modifieddate",
                     "title": "Zuletzt bearbeitet",
                     "class": 0
@@ -121,20 +189,14 @@
                     "name": "modifieduser",
                     "title": "von",
                     "class": 0
-                },
-                {
-                    "name": "works",
-                    "title": "In Ordnung",
-                    "class": 1,
-                    "type": "bool",
-                    "required": true
                 }
             ]
         }
     },
     "order": [
+        "project",
         "tool",
-        "incoming",
-        "outgoing"
+        "tool_incoming",
+        "tool_outgoing"
     ]
 }
