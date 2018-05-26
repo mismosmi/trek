@@ -699,7 +699,7 @@ class TrekSmartInput {
         hasMouse: false
       }
       this.suggestion.box.classList.add('box', 'suggestion', 'is-paddingless');
-      this.suggestion.table.classList.add('table','is-hoverable');
+      this.suggestion.table.classList.add('table','is-hoverable', 'trek-suggestion-box');
       this.suggestion.box.appendChild(this.suggestion.table);
       this.suggestion.box.style.position = 'absolute';
       this.suggestion.table.addEventListener('mouseleave', () => this.suggestion.hasMouse = false );
