@@ -97,6 +97,7 @@ class TrekSimpleUserLock {
       controlField, // target
       this.model // suggestionModel
     );
+    this.input.input.addEventListener('input', () => this.input.update() );
     this.input.onUpdate = (value) => {
       this.model.data['username'] = value;
     };
