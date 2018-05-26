@@ -79,9 +79,12 @@ class TrekTableModel {
       }
     });
     const idCol = this.columns.find( col => col.name === 'id' );
-    if (idCol !== undefined && idCol.barcode === 'ean') this.eanBarcode = (value) => {
-      this.buffer.barcode = value;
-    };
+    if (idCol) {
+      this.barcode = idCol.barcode;
+      if (idCol.barcode === 'ean') this.eanBarcode = (value) => {
+        this.buffer.barcode = value;
+      }
+    }
 
     Object.defineProperty(this.data, 'createdate', {
       get: () => {
@@ -174,11 +177,13 @@ class TrekTableModel {
               return sheets[col.table].model.at(this.buffer[col.name]);
             }
           });
-          if (col.barcode === 'ean') this.eanBarcode = (value) => {
-            this.buffer[col.name] = Object.values(this.sheets[col.table].model.data).find( (search) => {
-              return value === search;
-            }).id;
-          };
+          if (sheets[col.table].model.barcode === 'ean') {
+            this.eanBarcode = (value) => {
+              this.buffer[col.name] = Object.values(sheets[col.table].model.data).find( (row) => {
+                return value === row.barcode;
+              }).id;
+            };
+          }
           break;
       }
     });
@@ -189,9 +194,20 @@ class TrekTableModel {
         return this.buffer ? this.buffer.barcode : '';
       },
       set: (value) => {
-        if (value.length === 13 && this.eanBarcode) this.eanBarcode(parseInt(value));
-        else if (value.startsWith(this.name)) this.buffer.id = parseInt(value.slice(value.length - 13));
-        else this.buffer[value.slice(0,-13) + '_id'] = parseInt(value.slice(value.length - 13));
+        const matchCol = this.columns.find( col => value.startsWith(col.table) );
+        if (matchCol) {
+          this.buffer[matchCol.name] = parseInt(value.slice(value.length - 13));
+          this.run(this.buffer);
+          this.onBufferChanged(this.buffer);
+          return true;
+        }
+        else if (this.eanBarcode) {
+          this.eanBarcode(parseInt(value));
+          this.run(this.buffer);
+          this.onBufferChanged(this.buffer);
+          return true;
+        }
+        return false;
       }
     });
 
@@ -218,7 +234,12 @@ class TrekTableModel {
 
   parseRow(row) {
     this.columns.forEach( (col) => {
-      if (col.name === 'id' || col.class === 3) return row[col.name] = parseInt(row[col.name]);
+      if (col.name === 'id') {
+        if (col.barcode === 'ean' && row.barcode) row.barcode = parseInt(row.barcode);
+        return row[col.name] = parseInt(row[col.name]);
+      }
+
+      if (col.class === 3) return row[col.name] = parseInt(row[col.name]);
 
       if (col.type === 'int' || col.type === 'euro') {
         return row[col.name] = parseInt(row[col.name]);
@@ -329,9 +350,9 @@ class TrekTableModel {
       } else {
         this.data[row.id] = this.parseRow(row);
         this.run(this.data[row.id]);
-        const sortedEntries = this.getSortedData(); 
-        const next = sortedEntries.indexOf(this.data[row.id]) + 1;
-        if (sortedEntries[next] === undefined) this.onRowAdded(row.id);
+        const sortedData = this.getSortedData(); 
+        const next = sortedData.indexOf(this.data[row.id]) + 1;
+        if (sortedData[next] === undefined) this.onRowAdded(row.id);
         else this.onRowAdded(row.id, next);
       }
     });
@@ -567,7 +588,6 @@ class TrekSmartInput {
     this.input.type = 'text';
     this.input.value = value;
     this.input.placeholder = column.title;
-    this.input.addEventListener('input', () => this.update());
     this.input.addEventListener('click', () => this.input.select());
     this.isValid = !this.column.required || value !== '';
     if (
@@ -756,6 +776,15 @@ class TrekSmartInput {
   focus() {
     this.input.focus();
   }
+  set(value) {
+    this.input.value = value;
+  }
+  get() {
+    return this.input.value;
+  }
+  enter(value) {
+    this.input.value += value;
+  }
 
     
 }
@@ -847,18 +876,32 @@ class TrekTableView {
     this.model.onBufferChanged = (buffer) => {
       this.forEachColumn( (col) => {
         switch (col.class) {
+          case 0: // Meta Column
+            if (col.barcode) {
+              const val = buffer.barcode;
+              if (val) {
+                const spacer = this.formRow.querySelector('td[data-col="'+col.name+'"] .trek-row-formrow');
+                spacer.innerHTML = `Barcode:<br>${val}`;
+                spacer.classList.add('is-size-7');
+              }
+            }
+            break;
           case 2: // Auto Column
-            console.log('update', col, buffer);
             const val = this.getDisplayFormat(col, buffer);
             const spacer = this.formRow.querySelector('td[data-col="'+col.name+'"] .trek-row-formrow');
-            if (val !== spacer.textContent) spacer.textContent = val;
+            spacer.textContent = val;
             if (col.symbol) {
               const symbolspan = document.createElement('span');
               symbolspan.innerHTML = ' ' + col.symbol;
               spacer.appendChild(symbolspan);
             }
+            break;
         }
       });
+      this.formRow.inputs.forEach( (input) => {
+        if (buffer[input.column.name]) input.set(buffer[input.column.name]);
+      });
+
     };
 
     // remove deleted row
@@ -910,8 +953,12 @@ class TrekTableView {
     // asynchronously pull content per ajax request, append table-rows per callback
     setTimeout(() => this.model.sync(true));
 
+    let keyQueue = [];
+    let keyTimeout = -1;
+    let keyTime = 0;
     // add Keyboard shortcuts
     const keyAction = (event) => {
+      //console.log(event.key);
       if (this.formRow === undefined) { // no active form
         switch (event.key) {
           case 'Enter':
@@ -941,6 +988,56 @@ class TrekTableView {
           }
         }
       } else { // active form
+        if (event.key === 'Enter' && keyQueue.length > 0) {
+          clearTimeout(keyTimeout);
+          const scanValue = keyQueue.join('');
+          const activeElement = document.activeElement;
+          let input;
+          if (activeElement.tagName === 'INPUT') {
+            input = this.formRow.inputs.find( input => input.input === activeElement );
+            input.set(this.model.buffer[input.column.name]);
+            input.update();
+          }
+          this.model.data.barcode = scanValue;
+          keyQueue = [];
+          keyTime = Date.now();
+          return;
+
+        } 
+
+        const now = Date.now();
+        if (now - keyTime > 10) {
+          const activeElement = document.activeElement;
+          let input;
+          if (activeElement.tagName === 'INPUT') {
+            input = this.formRow.inputs.find( input => input.input === activeElement );
+          }
+          if (event.key.match(/^[a-z0-9]$/)) {
+            keyQueue.push(event.key);
+          }
+          switch (event.key) {
+            case 'Enter':
+            case 'Escape':
+            case 'ArrowDown':
+            case 'ArrowUp':
+              break;
+            default:
+              clearTimeout(keyTimeout);
+              keyTimeout = setTimeout( () => {
+                keyQueue = [];
+                if (input) input.update();
+              }, 50);
+          }
+          keyTime = now;
+        } else {
+          if (event.key.match(/^[a-z0-9]$/)) {
+            keyQueue.push(event.key);
+          }
+          keyTime = now;
+          return;
+        }
+
+
         if (this.formRow.activeSuggestion === undefined) { // no active suggestion
           switch (event.key) {
             case 'Enter':
@@ -964,10 +1061,10 @@ class TrekTableView {
               s.hide();
               return;
             case 'ArrowDown':
-              s.select(s.current.nextSibling);
+              if (s.current.nextSibling) s.select(s.current.nextSibling);
               return;
             case 'ArrowUp':
-              s.select(s.current.previousSibling);
+              if (s.current.previousSibling) s.select(s.current.previousSibling);
               return;
             case 'Enter':
               s.accept(s.current);
@@ -986,7 +1083,7 @@ class TrekTableView {
       this.printButton.removeEventListener('click', printFn);
       this.model.clear();
       document.removeEventListener('keyup', keyAction);
-    }
+    };
 
 
   }
@@ -1013,19 +1110,11 @@ class TrekTableView {
     return this.model.columns.find( col => col.name === name );
   }
 
-  getColSpan(col) {
-    if (col === 'control') return 3;
-    if (col.type === 'string') return 3;
-    if (col.name === 'createdate' || col.name === 'modifieddate') return 2;
-    if (col.type === 'euro') return 2;
-    return 1;
-  }
-
   // generate row formatted as tr
   getRow(id) {
     const tr = document.createElement('tr');
     tr.id = id;
-    this.model.at(id);
+    const data = this.model.at(id);
     this.forEachColumn( (col) => {
       const val = this.getDisplayFormat(col);
       const td = document.createElement('td');
@@ -1035,7 +1124,11 @@ class TrekTableView {
         td.classList.add('has-text-right');
         td.setAttribute('nowrap', true);
       }
+      if (col.name === 'id' && col.barcode === 'ean' && data.barcode) {
+        td.innerHTML += `<span class="is-size-7">(${data.barcode})</span> `;
+      }
       td.innerHTML += `${val} ${val ? col.symbol : ''}`;
+
       tr.appendChild(td);
     });
     const controlTd = document.createElement('th');
@@ -1167,7 +1260,6 @@ class TrekTableView {
 
     const p = document.createElement('p');
     p.classList.add('column', 'column-control');
-    //controlTh.colSpan = this.getColSpan('control');
     tr.appendChild(controlTh); // empty header for controls-column
     return tr;
   }

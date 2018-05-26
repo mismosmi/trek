@@ -184,6 +184,8 @@ class RestApi extends SqlDb
             $columns = $this->dbInfo['user'] ? ['createuser', 'modifieduser'] : [];
             foreach ($this->getColumns($postData['tableName']) as $col) {
                 switch ($col['class']) {
+                case 0: // Meta Column
+                    if (array_key_exists('barcode', $col) && $col['barcode'] === 'ean') $columns[] = "barcode";
                 case 1: // Data Column
                     $columns[] = $col['name'];
                     break;
