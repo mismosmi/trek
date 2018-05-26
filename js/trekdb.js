@@ -1041,7 +1041,7 @@ class TrekTableView {
         if (this.formRow.activeSuggestion === undefined) { // no active suggestion
           switch (event.key) {
             case 'Enter':
-              this.save();
+              if (this.formRow.isValid) this.save();
               return;
             case 'Escape':
               this.cancel();
