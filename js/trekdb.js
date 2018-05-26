@@ -487,7 +487,7 @@ class TrekTableModel {
         this.syncTimeout = setTimeout(() => this.sync(), 300000);
       }
       if (typeof onSuccess === 'function') onSuccess();
-    }
+    };
     if (this.lastUpdate === undefined) {
       this.api.xhrRequest(
         {operation: 'SELECT', tableName: this.name},

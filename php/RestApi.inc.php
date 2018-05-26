@@ -181,7 +181,7 @@ class RestApi extends SqlDb
         $time = date('Y-m-d G:i:s');
         if ($postData['operation'] === "SELECT" || $opRet['success']) {
             $thisTable = ['name' => $postData['tableName'], 'columns' => []];
-            $columns = $this->dbInfo['user'] ? ['createuser', 'modifieduser'] : [];
+            $columns = $this->dbInfo['user'] && $postData['tableName'] !== 'trek_user' ? ['createuser', 'modifieduser'] : [];
             foreach ($this->getColumns($postData['tableName']) as $col) {
                 switch ($col['class']) {
                 case 0: // Meta Column

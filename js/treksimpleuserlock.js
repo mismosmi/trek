@@ -13,6 +13,7 @@ class TrekSimpleUserLock {
       }
     ]}}, this.api);
     this.model.resetBuffer();
+    this.model.sync();
     this.lock();
     this.lockButton = document.getElementById('trek-switch-user');
     this.lockButton.addEventListener('click', () => this.lock() );
