@@ -79,7 +79,7 @@ class Page {
     * @param string $filePath
     */
     public function addJs($filePath) {
-        $this->includeJs[] = HTML_ROOT.$filePath;
+        if (!in_array(HTML_ROOT.$filePath, $this->includeJs)) $this->includeJs[] = HTML_ROOT.$filePath;
     }
 
     /**
@@ -88,7 +88,7 @@ class Page {
     * @param string $filePath
     */
     public function addCss($filePath) {
-        $this->includeCss[] = HTML_ROOT.$filePath;
+        if (!in_array(HTML_ROOT.$filePath, $this->includeCss)) $this->includeCss[] = HTML_ROOT.$filePath;
     }
 
     /**

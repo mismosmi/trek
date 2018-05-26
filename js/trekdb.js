@@ -1,8 +1,5 @@
 "use strict";
 
-
-
-
 class TrekTableModel {
 
   constructor(name, sheets, api, user) {
@@ -64,7 +61,7 @@ class TrekTableModel {
     // access to other tables
     const keyColumn = this.name + '_id';
     Object.entries(sheets).forEach( ([sheetName, sheet]) => {
-      if (sheetName !== this.name && sheet.columns.find( col => col.name === keyColumn ) !== undefined) {
+      if (sheetName !== this.name && sheet.type === 'table' && sheet.columns.find( col => col.name === keyColumn ) !== undefined) {
         Object.defineProperty(this.data, sheetName, {
           get: () => {
             if (this.currentId) return sheet.model.filter( row => row[keyColumn] == this.currentId );
@@ -172,7 +169,7 @@ class TrekTableModel {
           });
           Object.defineProperty(this.data, col.table, {
             get: () => {
-              console.log('get table', col.table,' from ',sheets,', currentId',this.currentId, 'data', this.data);
+              //console.log('get table', col.table,' from ',sheets,', currentId',this.currentId, 'data', this.data);
               if (this.currentId) return sheets[col.table].model.at(this.data[this.currentId][col.name]);
               return sheets[col.table].model.at(this.buffer[col.name]);
             }
@@ -490,7 +487,6 @@ class TrekTableModel {
     }
   }
   insert(onSuccess, onError) {
-    console.log('insert',this.user);
     const data = this.getFormData();
     if (this.user) {
       data.createuser = this.user.name;
@@ -698,8 +694,8 @@ class TrekSmartInput {
         },
         hasMouse: false
       }
-      this.suggestion.box.classList.add('box', 'suggestion', 'is-paddingless');
-      this.suggestion.table.classList.add('table','is-hoverable', 'trek-suggestion-box');
+      this.suggestion.box.classList.add('box', 'suggestion', 'is-paddingless', 'trek-suggestion-box');
+      this.suggestion.table.classList.add('table','is-hoverable');
       this.suggestion.box.appendChild(this.suggestion.table);
       this.suggestion.box.style.position = 'absolute';
       this.suggestion.table.addEventListener('mouseleave', () => this.suggestion.hasMouse = false );
@@ -767,9 +763,9 @@ class TrekSmartInput {
 
 class TrekTableView {
 
-  constructor(model, sheets) {
+  constructor(name, sheets) {
     this.sheets = sheets;
-    this.model = model;
+    this.model = sheets[name].model;
 
     // create table and append to content-container
     this.container = document.getElementById('trek-container');
@@ -822,6 +818,7 @@ class TrekTableView {
     newColumn.appendChild(newButton);
     this.newRow.addEventListener('click', (event) => this.edit(event) );
 
+    // set initial order
     this.model.order = {
       ascending: false,
       column: {name: 'id'}
@@ -836,10 +833,10 @@ class TrekTableView {
       
     // push url
     const url = new URL(document.location.href);
-    url.searchParams.set('table', this.model.name);
+    url.searchParams.set('sheet', this.model.name);
     window.history.pushState({
       viewClass: this.constructor.name,
-      modelName: this.model.name,
+      table: this.model.name,
       lastUpdate: this.model.lastUpdate ? this.model.lastUpdate : 0,
       viewTarget: 'web'
     }, '', url.pathname + url.search);
@@ -851,9 +848,15 @@ class TrekTableView {
       this.forEachColumn( (col) => {
         switch (col.class) {
           case 2: // Auto Column
-            const val = this.getDisplayFormat(buffer[col.name]);
-            const td = this.formRow.querySelector('td[data-col="'+col.name+'"]');
-            if (val !== td.textContent) td.textContent = val;
+            console.log('update', col, buffer);
+            const val = this.getDisplayFormat(col, buffer);
+            const spacer = this.formRow.querySelector('td[data-col="'+col.name+'"] .trek-row-formrow');
+            if (val !== spacer.textContent) spacer.textContent = val;
+            if (col.symbol) {
+              const symbolspan = document.createElement('span');
+              symbolspan.innerHTML = ' ' + col.symbol;
+              spacer.appendChild(symbolspan);
+            }
         }
       });
     };
@@ -979,6 +982,7 @@ class TrekTableView {
     this.clear = () => {
       this.editButton.setAttribute('disabled', true);
       this.editButton.removeEventListener('click', editFn);
+      this.printButton.setAttribute('disabled', true);
       this.printButton.removeEventListener('click', printFn);
       this.model.clear();
       document.removeEventListener('keyup', keyAction);
@@ -1537,15 +1541,20 @@ class TrekDatabase {
     // iterate sheets and initialize models
     this.sheets = settings.sheets
     Object.entries(this.sheets).forEach( ([name, sheet]) => {
-      if (sheet.modelClass !== undefined) sheet.model = new sheet.modelClass(name, this.sheets, this.api, this.user);
-      else sheet.model = new TrekTableModel(name, this.sheets, this.api, this.user);
+      if (sheet.type === 'table') {
+        if (sheet.modelClass !== undefined) sheet.model = new sheet.modelClass(name, this.sheets, this.api, this.user);
+        else sheet.model = new TrekTableModel(name, this.sheets, this.api, this.user);
+      }
     });
     // initialize buffers, could not be done before all models are constructed
     Object.values(this.sheets).forEach( (sheet) => {
-      sheet.model.resetBuffer();
+      if (sheet.type === 'table') {
+        sheet.model.resetBuffer();
+      }
     });
 
-    if (!settings.user) this.selectTab();
+    //if (!settings.user) this.selectTab();
+    this.selectTab();
 
   }
 
@@ -1556,11 +1565,12 @@ class TrekDatabase {
       this.activeTab.classList.add('is-active');
       if (this.view !== undefined) this.view.clear();
     }
-    const activeSheet = this.sheets[this.activeTab.getAttribute('data-sheet')];
+    const name = this.activeTab.getAttribute('data-sheet');
+    const activeSheet = this.sheets[name];
     document.title = `${this.title} | ${activeSheet.title}`;
     const printStylesheet = activeSheet.printStylesheet ? activeSheet.printStylesheet : this.printStylesheet;
-    if (activeSheet.viewClass !== undefined) this.view = new activeSheet.viewClass(activeSheet.model, this.sheets);
-    else this.view = new TrekTableView(activeSheet.model, this.sheets);
+    if (activeSheet.viewClass !== undefined) this.view = new activeSheet.viewClass(name, this.sheets);
+    else this.view = new TrekTableView(name, this.sheets);
     this.view.printInfo = this.printInfo;
   }
 

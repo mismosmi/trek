@@ -5,7 +5,7 @@ define('PHP_ROOT', '../');
 define('HTML_ROOT', '../');
 define('HTML_FILE', basename(__FILE__));
 require_once(PHP_ROOT.'php/Database.inc.php');
-$activeTable = array_key_exists('table', $_GET) ? $_GET['table'] : '';
+$activeTable = array_key_exists('sheet', $_GET) ? $_GET['sheet'] : '';
 $db = new Database($_GET['db'], '', '', $activeTable);
 echo $db->getHead();
 ?>

@@ -2,6 +2,10 @@
     "name": "warenwirtschaft",
     "title": "Warenwirtschaft",
     "user": "simple",
+    "extensions": [
+        {"js": "js/trekmultitableview.js"},
+        {"js": "js/trektablereportview.js"}
+    ],
     "sheets": {
         "product": {
             "title": "Produkte",
@@ -276,9 +280,26 @@
         "retoure": {
             "title": "Retouren",
             "column_reference": "outgoing"
+        },
+        "stock_movement": {
+            "title": "Warenübersicht",
+            "type": "view",
+            "viewclass": "TrekMultiTableView",
+            "tables": [
+                "incoming",
+                "outgoing",
+                "retoure"
+            ]
+        },
+        "project_report": {
+            "title": "Projektreport",
+            "type": "report",
+            "viewclass": "TrekTableReportView",
+            "table": "project"
         }
     },
     "order": [
+        "stock_movement",
         "product",
         "project",
         "incoming",

@@ -42,7 +42,7 @@
     min-height: 1px;
 }
 
-#trek-container .trek-suggestion-box:hover {
+.trek-suggestion-box {
     cursor: pointer;
 }
     
