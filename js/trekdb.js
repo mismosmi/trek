@@ -773,6 +773,12 @@ class TrekSmartInput {
   removeAttribute(identifier) {
     this.input.removeAttribute(identifier);
   }
+  addClass(className) {
+    this.input.classList.add(className);
+  }
+  removeClass(className) {
+    this.input.classList.remove(className);
+  }
   focus() {
     this.input.focus();
   }
@@ -1041,7 +1047,7 @@ class TrekTableView {
         if (this.formRow.activeSuggestion === undefined) { // no active suggestion
           switch (event.key) {
             case 'Enter':
-              if (this.formRow.isValid) this.save();
+              this.save();
               return;
             case 'Escape':
               this.cancel();
@@ -1413,6 +1419,15 @@ class TrekTableView {
   }
 
   save() {
+    console.log('save');
+    if (!this.formRow.isValid) {
+      console.log('is invalid');
+      this.formRow.inputs.forEach( (input) => {
+        if (input.isValid) input.removeClass('is-danger');
+        else input.addClass('is-danger');
+      });
+      return;
+    }
     this.formRow.saveButton.classList.add('is-loading');
     const onError = () => { // onError
       this.formRow.saveButton.classList.remove('is-loading');
