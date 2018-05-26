@@ -1645,8 +1645,8 @@ class TrekDatabase {
       }
     });
 
-    //if (!settings.user) this.selectTab();
-    this.selectTab();
+    if (!settings.user) this.selectTab();
+    //this.selectTab();
 
   }
 

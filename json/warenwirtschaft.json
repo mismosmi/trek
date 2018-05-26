@@ -299,7 +299,6 @@
         }
     },
     "order": [
-        "stock_movement",
         "product",
         "project",
         "incoming",
