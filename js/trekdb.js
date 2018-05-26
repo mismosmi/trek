@@ -1518,7 +1518,8 @@ class TrekTableView {
     const table = d.createElement('div');
     table.id = 'table';
     // add space to generate barcodes
-    const hasBarcode = this.model.columns.find( col => col.name === 'id' ).barcode;
+    const hasBarcode = this.model.barcode;
+    console.log('print ,hasBarcode = ',hasBarcode);
 
     const barcodeSpace = document.createElement('div');
     if (hasBarcode) {
