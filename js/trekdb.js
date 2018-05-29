@@ -179,9 +179,8 @@ class TrekTableModel {
           });
           if (sheets[col.table].model.barcode === 'ean') {
             this.eanBarcode = (value) => {
-              this.buffer[col.name] = Object.values(sheets[col.table].model.data).find( (row) => {
-                return value === row.barcode;
-              }).id;
+              this.buffer[col.name] = Object.values(sheets[col.table].model.data).find( row => value === row.barcode ).id;
+              this.onBarcodeEntered(col, this.buffer);
             };
           }
           break;
@@ -198,6 +197,7 @@ class TrekTableModel {
         if (matchCol) {
           this.buffer[matchCol.name] = parseInt(value.slice(value.length - 13));
           this.run(this.buffer);
+          this.onBarcodeEntered(col, this.buffer);
           this.onBufferChanged(this.buffer);
           return true;
         }
@@ -436,7 +436,7 @@ class TrekTableModel {
   }
 
   // copy a row to buffer in order to edit non-destructively
-  edit(id) {
+  setBuffer(id) {
     if (id) this.buffer = Object.assign({}, this.data[id]);
     this.currentId = '';
   }
@@ -525,7 +525,6 @@ class TrekTableModel {
           server: response.time,
           client: Date.now()
         };
-        this.resetBuffer();
         this.update(response.data);
         if (typeof onSuccess === 'function') onSuccess();
       },
@@ -548,7 +547,6 @@ class TrekTableModel {
           server: response.time,
           client: Date.now()
         };
-        this.resetBuffer();
         this.update(response.data);
         if (typeof onSuccess === 'function') onSuccess();
       },
@@ -568,7 +566,6 @@ class TrekTableModel {
           server: response.time,
           client: Date.now()
         };
-        this.resetBuffer();
         this.update(response.data);
         if (typeof onSuccess === 'function') onSuccess();
       },
@@ -904,15 +901,19 @@ class TrekTableView {
             break;
         }
       });
-      this.formRow.inputs.forEach( (input) => {
-        if (buffer[input.column.name]) input.set(buffer[input.column.name]);
-      });
 
+    };
+
+    this.model.onBarcodeEntered = (column, buffer) => {
+      const input = this.formRow.inputs.find( input => input.column === column );
+      input.set(this.getDisplayFormat(input.column, buffer));
+      input.isValid = true;
     };
 
     // remove deleted row
     this.model.onRowDeleted = (id) => {
-      this.body.removeChild(document.getElementById(id));
+      const row = document.getElementById(id);
+      if (row !== null) this.body.removeChild(row);
     };
 
     // append row at end of tbody
@@ -968,7 +969,7 @@ class TrekTableView {
       if (this.formRow === undefined) { // no active form
         switch (event.key) {
           case 'Enter':
-            this.model.edit('');
+            this.model.setBuffer('');
             this.formRow = this.getFormRow('');
             this.body.replaceChild(this.formRow, this.newRow);
             const input = this.formRow.querySelector('input');
@@ -1401,7 +1402,7 @@ class TrekTableView {
       // save the column we clicked on to focus it later
       const targetColumn = event.target.getAttribute('data-col');
       // copy row values to buffer
-      this.model.edit(event.currentTarget.id);
+      this.model.setBuffer(event.currentTarget.id);
       // replace row content with edit-form
       this.formRow = this.getFormRow(event.currentTarget.id);
       this.body.replaceChild(this.formRow, event.currentTarget);

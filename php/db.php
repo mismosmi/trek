@@ -12,7 +12,7 @@ echo $db->getHead();
 <body>
 <?php echo $db->getNavbar(); ?>
 <section class="section" id="trek-title-section">
- <div>
+ <div class="container">
   <h1 class="title"><?php echo $db->getTitle(); ?></h1>
  </div>
 </section>
