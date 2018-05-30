@@ -175,16 +175,16 @@ class Database extends Page
         foreach ($this->dbInfo['sheets'] as $tableName => $sheet) {
             $title = $this->dbInfo['sheets'][$tableName]['title'];
             if (array_key_exists('type', $sheet) && $sheet['type'] !== 'table') {
-                $sheets .= 
-                    "       '$tableName': { title: \"$title\", type: '{$sheet['type']}', viewClass: {$sheet['viewclass']},\n";
-                switch ($sheet['type']) {
-                case "view":
-                    $sheets .= "         tables: [";
-                    foreach ($sheet['tables'] as $table) $sheets .= "'$table', ";
-                    $sheets .= "],\n";
-                    break;
-                }
-                $sheets .= "       },\n";
+                //$sheets .= 
+                //    "       '$tableName': { title: \"$title\", type: '{$sheet['type']}', viewClass: {$sheet['viewclass']},\n";
+                //switch ($sheet['type']) {
+                //case "view":
+                //    $sheets .= "         tables: [";
+                //    foreach ($sheet['tables'] as $table) $sheets .= "'$table', ";
+                //    $sheets .= "],\n";
+                //    break;
+                //}
+                //$sheets .= "       },\n";
 
 
             } else {

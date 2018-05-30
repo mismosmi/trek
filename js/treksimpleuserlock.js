@@ -131,7 +131,7 @@ class TrekSimpleUserLock {
   unlock() {
     if (this.model.data['username']) {
       const name = this.model.data.username;
-      if (this.model.find( row => row.username === name ) === undefined) {
+      if (this.model.find( row => row.username === name && row.username !== '' ) === undefined) {
         this.model.insert();
       }
       this.setUsername(name);

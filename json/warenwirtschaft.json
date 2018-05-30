@@ -49,7 +49,14 @@
                     "title": "Preis/Teil",
                     "class": 2,
                     "type": "euro",
-                    "js": "tv.unitprice / tv.unit"
+                    "js": "Math.ceil( (tv.unitprice / tv.unit) * 10**-2 ) * 10**2"
+                },
+                {
+                    "name": "stock",
+                    "title": "Bestand",
+                    "class": 2,
+                    "type": "int",
+                    "js": "tv.incoming.sum('quantity') - tv.outgoing.sum('quantity') + tv.retoure.sum('quantity')"
                 },
                 {
                     "name": "notes",
@@ -163,15 +170,8 @@
                     "type": "string"
                 },
                 {
-                    "name": "unitprice",
-                    "title": "Preis/Einheit",
-                    "class": 2,
-                    "type": "euro",
-                    "js": "tv.product.unitprice"
-                },
-                {
                     "name": "quantity",
-                    "title": "Anzahl Einheiten",
+                    "title": "Anzahl Teile",
                     "class": 1,
                     "type": "int",
                     "required": true,
@@ -182,7 +182,7 @@
                     "title": "Summe Bestellung",
                     "class": 2,
                     "type": "euro",
-                    "js": "tv.quantity * tv.product.unitprice"
+                    "js": "tv.quantity * tv.product.pieceprice"
                 },
                 {
                     "name": "notes",
@@ -238,15 +238,8 @@
                     "type": "string"
                 },
                 {
-                    "name": "unitprice",
-                    "title": "Preis/Einheit",
-                    "class": 2,
-                    "type": "euro",
-                    "js": "tv.product.unitprice"
-                },
-                {
                     "name": "quantity",
-                    "title": "Anzahl Einheiten",
+                    "title": "Anzahl Teile",
                     "class": 1,
                     "type": "int",
                     "required": true,
@@ -257,7 +250,7 @@
                     "title": "Summe Bestellung",
                     "class": 2,
                     "type": "euro",
-                    "js": "tv.quantity * tv.product.unitprice"
+                    "js": "tv.quantity * tv.product.pieceprice"
                 },
                 {
                     "name": "notes",

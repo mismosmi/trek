@@ -3,6 +3,7 @@
 class TrekTableModel {
 
   constructor(name, sheets, api, user) {
+    //console.log('TrekTableModel(',name,sheets,api,user,')');
     this.name = name;
     this.api = api;
     this.user = user;
@@ -74,6 +75,7 @@ class TrekTableModel {
     // attach accessors for Meta columns
     Object.defineProperty(this.data, 'id', {
       get: () => {
+        //console.log('on ',this.name, 'get id, currentId',this.currentId,'data', this.data);
         if (this.currentId) return this.data[this.currentId].id;
         return this.buffer ? this.buffer.id : '';
       }
@@ -88,12 +90,14 @@ class TrekTableModel {
 
     Object.defineProperty(this.data, 'createdate', {
       get: () => {
+        //console.log('on ',this.name, 'get createdate, currentId',this.currentId,'data', this.data);
         if (this.currentId) return this.data[this.currentId].createdate;
         return this.buffer ? this.buffer.createdate : '';
       }
     });
     Object.defineProperty(this.data, 'modifieddate', {
       get: () => {
+          //console.log('on ',this.name, 'get moddate, currentId',this.currentId,'data', this.data);
         if (this.currentId) return this.data[this.currentId].modifieddate;
         return this.buffer ? this.buffer.modifieddate : '';
       }
@@ -101,12 +105,14 @@ class TrekTableModel {
     if (this.user) {
       Object.defineProperty(this.data, 'modifieduser', {
         get: () => {
+          //console.log('on ',this.name, 'get modeuser, currentId',this.currentId,'data', this.data);
           if (this.currentId) return this.data[this.currentId].modifieduser;
           return this.buffer ? this.buffer.modifieduser : '';
         }
       });
       Object.defineProperty(this.data, 'createuser', {
         get: () => {
+          //console.log('on ',this.name, 'get createuser, currentId',this.currentId,'data', this.data);
           if (this.currentId) return this.data[this.currentId].createuser;
           return this.buffer ? this.buffer.createuser : '';
         }
@@ -116,12 +122,25 @@ class TrekTableModel {
     // attach accessors
     // set missing column types
     this.columns.forEach( (col) => {
-      this.defaultRow[col.name] = col.default === undefined ? '' : col.default;
+      if (col.default === undefined) {
+        switch (col.type) {
+          case 'int':
+          case 'float':
+          case 'euro':
+            this.defaultRow[col.name] = 0;
+            break;
+          case 'bool':
+            this.defaultRow[col.name] = false;
+          default:
+            this.defaultRow[col.name] = '';
+        }
+      } else this.defaultRow[col.name] = col.default;
 
       switch (col.class) {
         case 2: // Auto Column
           Object.defineProperty(this.data, col.name, {
             get: () => {
+              //console.log('on ',this.name, 'get ',col.name,' currentId',this.currentId,'data', this.data);
               if (this.currentId) return this.data[this.currentId][col.name];
               return this.buffer ? this.buffer[col.name] : this.defaultRow[col.name];
             }
@@ -130,7 +149,7 @@ class TrekTableModel {
         case 1: // Data Column
           Object.defineProperty(this.data, col.name, {
             get: () => {
-              //console.log('get',col.name,'id',this.currentId,'buffer',this.buffer);
+              //console.log('on ',this.name, 'get ',col.name,' currentId',this.currentId,'data', this.data);
               if (this.currentId) return this.data[this.currentId][col.name];
               return this.buffer ? this.buffer[col.name] : this.defaultRow[col.name];
             },
@@ -160,6 +179,7 @@ class TrekTableModel {
           col.type = 'int';
           Object.defineProperty(this.data, col.name, {
             get: () => {
+              //console.log('on ',this.name, 'get ',col.name,' currentId',this.currentId,'data', this.data);
               if (this.currentId) return this.data[this.currentId][col.name];
               return this.buffer ? this.buffer[col.name] : this.defaultRow[col.name];
             },
@@ -172,7 +192,7 @@ class TrekTableModel {
           });
           Object.defineProperty(this.data, col.table, {
             get: () => {
-              //console.log('get table', col.table,' from ',sheets,', currentId',this.currentId, 'data', this.data);
+              //console.log('on ',this.name, 'get ',col.name,' currentId',this.currentId,'data', this.data);
               if (this.currentId) return sheets[col.table].model.at(this.data[this.currentId][col.name]);
               return sheets[col.table].model.at(this.buffer[col.name]);
             }
@@ -296,11 +316,13 @@ class TrekTableModel {
   }
 
   run(row, id) {
+    //console.log('run',row,id);
     if (typeof row !== 'object') row = this.data[row];
     this.currentId = id === undefined ? row.id : id;
     this.columns.forEach( (col) => {
       switch (col.class) {
         case 2: // Auto Column
+          //console.log(col);
           row[col.name] = col.run(this.data);
           break;
       }
@@ -337,6 +359,11 @@ class TrekTableModel {
     });
   }
 
+
+  runAll() {
+    const arrData = Object.values(this.data);
+    this.forAllAsc( row => this.run(row) );
+  }
 
   update(data) {
     const arrData = Object.values(data);
@@ -442,6 +469,7 @@ class TrekTableModel {
   }
 
   resetBuffer() {
+    //console.log('resetBuffer on',this.name);
     this.buffer = Object.assign({}, this.defaultRow);
     this.run(this.buffer);
     this.currentId = '';
@@ -472,6 +500,16 @@ class TrekTableModel {
   }
 
   // api requests
+  pull(onSuccess, onError) {
+    this.api.xhrRequest(
+      {operation: 'SELECT', tableName: this.name},
+      (response) => { // onSuccess
+        Object.values(response.data).forEach( (row) => this.data[row.id] = this.parseRow(row) );
+        if (typeof onSuccess === 'function') onSuccess();
+      },
+      onError
+    );
+  }
   sync(repaint = false, onSuccess, onError) {
     const currentClientTime = Date.now();
     const onSuccessFn = (response) => {
@@ -1420,9 +1458,9 @@ class TrekTableView {
   }
 
   save() {
-    console.log('save');
+    //console.log('save');
     if (!this.formRow.isValid) {
-      console.log('is invalid');
+      //console.log('is invalid');
       this.formRow.inputs.forEach( (input) => {
         if (input.isValid) input.removeClass('is-danger');
         else input.addClass('is-danger');
@@ -1535,7 +1573,7 @@ class TrekTableView {
     table.id = 'table';
     // add space to generate barcodes
     const hasBarcode = this.model.barcode;
-    console.log('print ,hasBarcode = ',hasBarcode);
+    //console.log('print ,hasBarcode = ',hasBarcode);
 
     const barcodeSpace = document.createElement('div');
     if (hasBarcode) {
@@ -1602,7 +1640,7 @@ class TrekApi {
 
   // general ajax settings and error handling
   xhrRequest(data, onSuccess, onError) {
-    console.log('ajax request, url: ', this.ajaxUrl, ' data: ', data);
+    //console.log('ajax request, url: ', this.ajaxUrl, ' data: ', data);
     $.ajax({
       url: this.ajaxUrl,
       method: 'POST',
@@ -1610,7 +1648,7 @@ class TrekApi {
       dataType: 'json',
       async: false,
       success: (response) => {
-        console.log('response: ', response);
+        //console.log('response: ', response);
         if (response.success) onSuccess(response);
         else {
           console.log('Database error: '+response.errormsg);
@@ -1618,7 +1656,7 @@ class TrekApi {
         }
       },
       error: (xhr, ajaxOptions, thrownError) => {
-        console.log('Ajax error: '+xhr.status+'\n'+thrownError);
+        //console.log('Ajax error: '+xhr.status+'\n'+thrownError);
         if (typeof onError === 'function') onError();
       }
     });
@@ -1655,13 +1693,12 @@ class TrekDatabase {
         else sheet.model = new TrekTableModel(name, this.sheets, this.api, this.user);
       }
     });
-    // initialize buffers, could not be done before all models are constructed
-    Object.values(this.sheets).forEach( (sheet) => {
-      if (sheet.type === 'table') {
-        sheet.model.resetBuffer();
-      }
-    });
-
+    // pull, run, initialize buffers
+    const tables = Object.values(this.sheets).filter( sheet => sheet.type === 'table' );
+    tables.forEach( sheet => sheet.model.pull() );
+    tables.forEach( sheet => sheet.model.runAll() );
+    tables.forEach( sheet => sheet.model.resetBuffer() );
+    
     if (!settings.user) this.selectTab();
     //this.selectTab();
 
