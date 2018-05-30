@@ -1143,6 +1143,10 @@ class TrekTableView {
   // if column type is a currency convert to float for correct display
   getDisplayFormat(col, row) {
     const val = (row === undefined) ? this.model.data[col.name] : row[col.name];
+    if (col.name === 'id') {
+      if (val) return val;
+      else return '';
+    }
     switch (col.type) {
       case 'euro':
         if (val === 0 || val) return (val * (10**-4)).toFixed(2);
