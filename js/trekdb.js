@@ -18,6 +18,7 @@ class TrekTableModel {
     this.data = { 
 
       forEach: (doThis, maxIndex = this.currentId) => {
+        if (maxIndex === 0) return;
         if (maxIndex) {
           for (var index = 1; index <= maxIndex; index++) {
             if (this.data[index] !== undefined && this.filterFn(this.data[index])) {
@@ -55,6 +56,12 @@ class TrekTableModel {
           length++;
         });
         return sum / length;
+      },
+
+      max: (column) => {
+        return Math.max( 
+          Object.values(this.data).filter( row => typeof row === 'object' ).map( row => row[column] ) 
+        );
       }
     };
 
@@ -322,7 +329,6 @@ class TrekTableModel {
     this.columns.forEach( (col) => {
       switch (col.class) {
         case 2: // Auto Column
-          //console.log(col);
           row[col.name] = col.run(this.data);
           break;
       }
