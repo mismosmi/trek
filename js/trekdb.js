@@ -1628,7 +1628,7 @@ class TrekTableView {
         } else {
           const code = this.model.name + ("0000000000000" + row.id).slice(-13);
           JsBarcode('#barcode', code , {
-            format: row.barcode ? 'ean13' : 'code128',
+            format: 'code128',
             width: 1
           });
         }
