@@ -188,7 +188,8 @@ class TrekTableModel {
             get: () => {
               //console.log('on ',this.name, 'get ',col.name,' currentId',this.currentId,'data', this.data);
               if (this.currentId) return this.data[this.currentId][col.name];
-              return this.buffer ? this.buffer[col.name] : this.defaultRow[col.name];
+              if (this.buffer) return this.buffer[col.name];
+              return this.defaultRow[col.name];
             },
             set: (value) => {
               // foreign keys are always ints
@@ -201,7 +202,8 @@ class TrekTableModel {
             get: () => {
               //console.log('on ',this.name, 'get ',col.name,' currentId',this.currentId,'data', this.data);
               if (this.currentId) return sheets[col.table].model.at(this.data[this.currentId][col.name]);
-              return sheets[col.table].model.at(this.buffer[col.name]);
+              if (this.buffer) return sheets[col.table].model.at(this.buffer[col.name]);
+              return sheets[col.table].model.at('');
             }
           });
           if (sheets[col.table].model.barcode === 'ean') {
@@ -367,7 +369,6 @@ class TrekTableModel {
 
 
   runAll() {
-    const arrData = Object.values(this.data);
     this.forAllAsc( row => this.run(row) );
   }
 
