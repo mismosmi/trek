@@ -676,7 +676,10 @@ class TrekSmartInput {
                   if (col.name === 'id') tr.innerHTML += `<td><b>${search}</b>${idStr.slice(search.length)}</td>`;
                   break;
                 case 1: // Data Column
-                  tr.innerHTML += `<td>${row[col.name]}</td>`;
+                  const td = document.createElement('td');
+                  td.innerHTML = this.getDisplayFormat(col, row);
+                  if (col.symbol) td.innerHTML += ' '+col.symbol;
+                  tr.appendChild(td);
                   break;
               }
             });
@@ -774,6 +777,23 @@ class TrekSmartInput {
   onShowSuggestion(suggestion) {}
   onHideSuggestion() {}
 
+
+  // if column type is a currency convert to float for correct display
+  getDisplayFormat(col, row) {
+    const val = (row === undefined) ? this.model.data[col.name] : row[col.name];
+    if (col.name === 'id') {
+      if (val) return val;
+      else return '';
+    }
+    switch (col.type) {
+      case 'euro':
+        if (val === 0 || val) return (val * (10**-4)).toFixed(2);
+        else return '0.00';
+      default:
+        if (val === 0 || val) return val;
+        else return '';
+    }
+  }
 
   // type validation
   validate() {
