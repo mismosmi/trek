@@ -1598,11 +1598,18 @@ class TrekTableView {
         const barcode = document.createElement('img');
         barcode.id = 'barcode';
         barcodeSpace.appendChild(barcode);
-        const code = row.barcode ? row.barcode : this.model.name + ("0000000000000" + row.id).slice(-13);
-        JsBarcode('#barcode', code , {
-          format: row.barcode ? 'ean' : 'code128',
-          width: 1
-        });
+        if (row.barcode) {
+          const code = row.barcode;
+          JsBarcode('#barcode', code , {
+            format: 'ean13'
+          });
+        } else {
+          const code = this.model.name + ("0000000000000" + row.id).slice(-13);
+          JsBarcode('#barcode', code , {
+            format: row.barcode ? 'ean13' : 'code128',
+            width: 1
+          });
+        }
         const barcodeTd = document.createElement('span');
         barcodeTd.classList.add('td-barcode');
         //barcodeTd.appendChild(barcode);
