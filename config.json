@@ -36,7 +36,6 @@
 
     "order": [
         "home",
-        "schemadb",
         "warenwirtschaft",
         "werkzeug"
     ],
