@@ -379,7 +379,8 @@ class TrekTableModel {
         this.data[row.id] = undefined;
         this.onRowDeleted(row.id);
       } else if (this.data[row.id] !== undefined) {
-        this.data[row.id] = this.run(this.parseRow(row));
+        this.data[row.id] = this.parseRow(row)
+        this.run(this.data[row.id]);
         this.onRowChanged(row.id);
       } else {
         this.data[row.id] = this.parseRow(row);
